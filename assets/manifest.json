@@ -1,0 +1,446 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "name": "AlertTriangle",
+      "path": "status-icons/battery/AlertTriangle.pdf",
+      "symbol": "sl_embedded_000_AlertTriangle",
+      "sha256": "ecfe0638382b85ebb8df4a96f9bd5d6eead53e09cf9898d903afff6e7e874274",
+      "size": 1115
+    },
+    {
+      "name": "BatteryCharged",
+      "path": "status-icons/battery/BatteryCharged.pdf",
+      "symbol": "sl_embedded_001_BatteryCharged",
+      "sha256": "7dfb94f33dc82465828a2e4e36cbd26288f79371c12b36557342e95ca6be1b14",
+      "size": 2638
+    },
+    {
+      "name": "BatteryCharging",
+      "path": "status-icons/battery/BatteryCharging.pdf",
+      "symbol": "sl_embedded_002_BatteryCharging",
+      "sha256": "2b5429f4aa0a6b930a25c5fcd08394fbbe0a115f3cbee8b0be4a602168c2134f",
+      "size": 1250
+    },
+    {
+      "name": "BatteryDeadCropped",
+      "path": "status-icons/battery/BatteryDeadCropped.pdf",
+      "symbol": "sl_embedded_003_BatteryDeadCropped",
+      "sha256": "f0142ce194c1e7fc288fd1410cceb0290c202c256168a342e1533e78bed45fd2",
+      "size": 1306
+    },
+    {
+      "name": "BatteryEmpty",
+      "path": "status-icons/battery/BatteryEmpty.pdf",
+      "symbol": "sl_embedded_004_BatteryEmpty",
+      "sha256": "3f72b5c54ab605714f5520e321b48aeba7cdd69ea5d0ec1bd5e622aa5bae4add",
+      "size": 8210
+    },
+    {
+      "name": "BatteryLevelCapB-L",
+      "path": "status-icons/battery/BatteryLevelCapB-L.pdf",
+      "symbol": "sl_embedded_005_BatteryLevelCapB_L",
+      "sha256": "ea8db3161bab953b5359de06980b344a2ee309fe9d09b8c5cf8cae31605d5c47",
+      "size": 3990
+    },
+    {
+      "name": "BatteryLevelCapB-M",
+      "path": "status-icons/battery/BatteryLevelCapB-M.pdf",
+      "symbol": "sl_embedded_006_BatteryLevelCapB_M",
+      "sha256": "b5035df6b823a112bd8582c9b7703608afea5e8249e18c211f68508f8531a37f",
+      "size": 4011
+    },
+    {
+      "name": "BatteryLevelCapB-R",
+      "path": "status-icons/battery/BatteryLevelCapB-R.pdf",
+      "symbol": "sl_embedded_007_BatteryLevelCapB_R",
+      "sha256": "39f9ed846192d5bc264b4b046634e4a274c1e0ca1245f1f06a8d7bf628d6b62f",
+      "size": 3959
+    },
+    {
+      "name": "BatteryLevelCapR-L",
+      "path": "status-icons/battery/BatteryLevelCapR-L.pdf",
+      "symbol": "sl_embedded_008_BatteryLevelCapR_L",
+      "sha256": "2db82852359a1bb66e37361631533c270bbf521f3fe68d75ea4f8a70cff31730",
+      "size": 3991
+    },
+    {
+      "name": "BatteryLevelCapR-Lsngl",
+      "path": "status-icons/battery/BatteryLevelCapR-Lsngl.pdf",
+      "symbol": "sl_embedded_009_BatteryLevelCapR_Lsngl",
+      "sha256": "2db82852359a1bb66e37361631533c270bbf521f3fe68d75ea4f8a70cff31730",
+      "size": 3991
+    },
+    {
+      "name": "BatteryLevelCapR-M",
+      "path": "status-icons/battery/BatteryLevelCapR-M.pdf",
+      "symbol": "sl_embedded_010_BatteryLevelCapR_M",
+      "sha256": "71408b2da8794453175fa72761c84a4dd1d934236f688fcf9d3d4e584a321e91",
+      "size": 4014
+    },
+    {
+      "name": "BatteryLevelCapR-R",
+      "path": "status-icons/battery/BatteryLevelCapR-R.pdf",
+      "symbol": "sl_embedded_011_BatteryLevelCapR_R",
+      "sha256": "be952cda2cedb6e0311a85167164d94e015a7327cea863f4a2e70470f29cd97b",
+      "size": 3958
+    },
+    {
+      "name": "BatteryNone",
+      "path": "status-icons/battery/BatteryNone.pdf",
+      "symbol": "sl_embedded_012_BatteryNone",
+      "sha256": "3db7e1c60b5c77f2debb8496a23e3681e4b746d0dcc120da0e27491725630453",
+      "size": 1255
+    },
+    {
+      "name": "glyphCharged",
+      "path": "status-icons/battery/glyphCharged.pdf",
+      "symbol": "sl_embedded_013_glyphCharged",
+      "sha256": "29f57674614249e9099b5ecc929ca60cf94ee46e0c10219f7c8ce0e8ecb241da",
+      "size": 1882
+    },
+    {
+      "name": "glyphCharging",
+      "path": "status-icons/battery/glyphCharging.pdf",
+      "symbol": "sl_embedded_014_glyphCharging",
+      "sha256": "3b0a1512ed8ff194c4714ba4e184ceebd3506fa5b54ca7041eb54f5e40d4f493",
+      "size": 1835
+    },
+    {
+      "name": "glyphTriangle",
+      "path": "status-icons/battery/glyphTriangle.png",
+      "symbol": "sl_embedded_015_glyphTriangle",
+      "sha256": "5a6a14b7268c5e3b744200e238feaee3c09eab859ef8f8bab1832c68c9158dd3",
+      "size": 187
+    },
+    {
+      "name": "glyphX",
+      "path": "status-icons/battery/glyphX.png",
+      "symbol": "sl_embedded_016_glyphX",
+      "sha256": "619264a181af30d41d41da87c465e31621e0e71d3451fe5c5528862d20d18a86",
+      "size": 163
+    },
+    {
+      "name": "Single_1",
+      "path": "status-icons/battery/Single_1.tif",
+      "symbol": "sl_embedded_017_Single_1",
+      "sha256": "81bc9db440a4ca4332d0d534a0c357a7fbc0e464958cdd6389024171c5ec891f",
+      "size": 14416
+    },
+    {
+      "name": "splitBatteryEnd",
+      "path": "status-icons/battery/splitBatteryEnd.pdf",
+      "symbol": "sl_embedded_018_splitBatteryEnd",
+      "sha256": "5208f8fe4a4d61d02fbccb784c10c83e6a8c59753d054f09d37a3963b2ab1ec5",
+      "size": 1908
+    },
+    {
+      "name": "splitBatteryHead",
+      "path": "status-icons/battery/splitBatteryHead.pdf",
+      "symbol": "sl_embedded_019_splitBatteryHead",
+      "sha256": "8d8c1f80b0905a22dc0958505416630c8f37f85979ca7acbf09ff0a7ef1096c3",
+      "size": 2727
+    },
+    {
+      "name": "splitBatteryMiddle",
+      "path": "status-icons/battery/splitBatteryMiddle.pdf",
+      "symbol": "sl_embedded_020_splitBatteryMiddle",
+      "sha256": "1851d893f828aa5fe2116c2ec6ab76597d80ecfac6506a0975ae09204c420bd4",
+      "size": 1926
+    },
+    {
+      "name": "splitBatteryStretch",
+      "path": "status-icons/battery/splitBatteryStretch.pdf",
+      "symbol": "sl_embedded_021_splitBatteryStretch",
+      "sha256": "bf6f44e90b1cd846134d9e6a0ac8df529647a4c583986044b432a6f0ae1304c1",
+      "size": 2651
+    },
+    {
+      "name": "UPSCharged",
+      "path": "status-icons/battery/UPSCharged.pdf",
+      "symbol": "sl_embedded_022_UPSCharged",
+      "sha256": "f29ccae88cf17f01a0bc814f8d467e473367c8342cd0fb6686e8dae170766b5d",
+      "size": 1747
+    },
+    {
+      "name": "UPSCharging",
+      "path": "status-icons/battery/UPSCharging.pdf",
+      "symbol": "sl_embedded_023_UPSCharging",
+      "sha256": "fdd0dc26dd6f16ef76a13e1430b2b62ded271cece1df9b5d451387b26ff6c8e0",
+      "size": 1032
+    },
+    {
+      "name": "UPSEmpty",
+      "path": "status-icons/battery/UPSEmpty.pdf",
+      "symbol": "sl_embedded_024_UPSEmpty",
+      "sha256": "21aa3b739d1a80cc3b56bcef119a798accd0fade52c9042bef32c7c19221e6b8",
+      "size": 1001
+    },
+    {
+      "name": "UPSLevelBlack",
+      "path": "status-icons/battery/UPSLevelBlack.pdf",
+      "symbol": "sl_embedded_025_UPSLevelBlack",
+      "sha256": "8962b485bb32ad9b64ad0ea358c1e24d2857bae24131d1f81d3904d93acd465f",
+      "size": 1517
+    },
+    {
+      "name": "UPSLevelRed",
+      "path": "status-icons/battery/UPSLevelRed.pdf",
+      "symbol": "sl_embedded_026_UPSLevelRed",
+      "sha256": "fa754465936f6849d04c25b40c01a2dcb802d4f777b8b59a3b8e3cae6defa070",
+      "size": 1516
+    },
+    {
+      "name": "BlueTooth_BrokenConnection",
+      "path": "status-icons/bluetooth/BlueTooth_BrokenConnection.pdf",
+      "symbol": "sl_embedded_027_BlueTooth_BrokenConnection",
+      "sha256": "a21752de64e48609fcb8428e90b7cc273d463cd0399e56a432bc0e4592a015c4",
+      "size": 2035
+    },
+    {
+      "name": "BlueTooth_Connected",
+      "path": "status-icons/bluetooth/BlueTooth_Connected.pdf",
+      "symbol": "sl_embedded_028_BlueTooth_Connected",
+      "sha256": "6851eee54705134567f51a231c6257496570655a040f07e782c0314315c6b272",
+      "size": 2339
+    },
+    {
+      "name": "BlueTooth_Error",
+      "path": "status-icons/bluetooth/BlueTooth_Error.pdf",
+      "symbol": "sl_embedded_029_BlueTooth_Error",
+      "sha256": "930c59ff3b8f6e2dd5c74f3daecc729139fc2156355a7d89b408782c9dd4f2ec",
+      "size": 2142
+    },
+    {
+      "name": "BlueTooth_Idle",
+      "path": "status-icons/bluetooth/BlueTooth_Idle.pdf",
+      "symbol": "sl_embedded_030_BlueTooth_Idle",
+      "sha256": "d149567125d2e8815288c583c327d4f9912798f322a2c842586b12a25618161d",
+      "size": 1122
+    },
+    {
+      "name": "BlueTooth_Idle_Discoverable",
+      "path": "status-icons/bluetooth/BlueTooth_Idle_Discoverable.pdf",
+      "symbol": "sl_embedded_031_BlueTooth_Idle_Discoverable",
+      "sha256": "d149567125d2e8815288c583c327d4f9912798f322a2c842586b12a25618161d",
+      "size": 1122
+    },
+    {
+      "name": "BlueTooth_Off",
+      "path": "status-icons/bluetooth/BlueTooth_Off.pdf",
+      "symbol": "sl_embedded_032_BlueTooth_Off",
+      "sha256": "fa33953523091d769371af91e92cee13a211943b9fcdc49c7287e04404c54e70",
+      "size": 1909
+    },
+    {
+      "name": "lowbatt",
+      "path": "status-icons/bluetooth/lowbatt.pdf",
+      "symbol": "sl_embedded_033_lowbatt",
+      "sha256": "892537f664a85b1d794128ab7a651c337aa3e01d86fee0c4209e085aa0557b62",
+      "size": 9318
+    },
+    {
+      "name": "Volume1",
+      "path": "status-icons/sound/Volume1.pdf",
+      "symbol": "sl_embedded_034_Volume1",
+      "sha256": "13e0d2694dc3a44df981fdf2e4cd4dfc02172a1ea850c9c220ec236260485218",
+      "size": 1019
+    },
+    {
+      "name": "Volume2",
+      "path": "status-icons/sound/Volume2.pdf",
+      "symbol": "sl_embedded_035_Volume2",
+      "sha256": "3b7c36e7d88ed5643554878176a2efb8c9ce4146151e3d3986b102bb1dbe432e",
+      "size": 1180
+    },
+    {
+      "name": "Volume3",
+      "path": "status-icons/sound/Volume3.pdf",
+      "symbol": "sl_embedded_036_Volume3",
+      "sha256": "09756a91a31b9ac6398d31c857121513bd813aa09d624aec3bd1d5a1344fe558",
+      "size": 1330
+    },
+    {
+      "name": "Volume4",
+      "path": "status-icons/sound/Volume4.pdf",
+      "symbol": "sl_embedded_037_Volume4",
+      "sha256": "3eedad59f926c3e89fb447fb3fc1382c96139c5ed651b1b073d1aa5520fedef4",
+      "size": 5915
+    },
+    {
+      "name": "AirPort0",
+      "path": "status-icons/wifi/AirPort0.pdf",
+      "symbol": "sl_embedded_038_AirPort0",
+      "sha256": "5b85b53110ae72fb60f48f533e7c7f79a50b6ea1b4049afd7629af11cb16a24e",
+      "size": 3498
+    },
+    {
+      "name": "AirPort1",
+      "path": "status-icons/wifi/AirPort1.pdf",
+      "symbol": "sl_embedded_039_AirPort1",
+      "sha256": "cf801c1d341137261c271097cb841ef57d290f7f86e8414e9813f3760268a7a5",
+      "size": 3087
+    },
+    {
+      "name": "AirPort2",
+      "path": "status-icons/wifi/AirPort2.pdf",
+      "symbol": "sl_embedded_040_AirPort2",
+      "sha256": "94f90d03fbec2604a8cbe80e75e117287753af3bf4285d8a1603b4b0ef607166",
+      "size": 2600
+    },
+    {
+      "name": "AirPort3",
+      "path": "status-icons/wifi/AirPort3.pdf",
+      "symbol": "sl_embedded_041_AirPort3",
+      "sha256": "e5b908cf48eb442128992d6dc79ec49a19c852a646d2a8a5ffedbe677aa975a5",
+      "size": 2099
+    },
+    {
+      "name": "AirPort4",
+      "path": "status-icons/wifi/AirPort4.pdf",
+      "symbol": "sl_embedded_042_AirPort4",
+      "sha256": "6850e565720549e04848bca99f66684509b4c18268e9c8f18f2153013ccaf1c8",
+      "size": 1316
+    },
+    {
+      "name": "AirPortBlink",
+      "path": "status-icons/wifi/AirPortBlink.pdf",
+      "symbol": "sl_embedded_043_AirPortBlink",
+      "sha256": "871e082d4d22d6ef012d9628ba0fcf69fc1ae54438997406a35b0c9329047e1c",
+      "size": 2032
+    },
+    {
+      "name": "AirPortError",
+      "path": "status-icons/wifi/AirPortError.pdf",
+      "symbol": "sl_embedded_044_AirPortError",
+      "sha256": "ca23329d88fdb54936b5ad53adea7499c61e89ec2f1164161c627a5a30030659",
+      "size": 1843
+    },
+    {
+      "name": "AirportInMenu0",
+      "path": "status-icons/wifi/AirportInMenu0.pdf",
+      "symbol": "sl_embedded_045_AirportInMenu0",
+      "sha256": "d3aa95d2a40f31051b479b961e9d651acec9486f5f3cc9dd31f2747634bcf60c",
+      "size": 3373
+    },
+    {
+      "name": "AirportInMenu1",
+      "path": "status-icons/wifi/AirportInMenu1.pdf",
+      "symbol": "sl_embedded_046_AirportInMenu1",
+      "sha256": "b2ff51cd02d0f1bf2882f76c42c8d1dcec6582659fe73a615291e2274a07a781",
+      "size": 3000
+    },
+    {
+      "name": "AirportInMenu2",
+      "path": "status-icons/wifi/AirportInMenu2.pdf",
+      "symbol": "sl_embedded_047_AirportInMenu2",
+      "sha256": "b74445eebc12a91d4c9c14e965425f47b80b6cff59f98f7c61be2b48e957a419",
+      "size": 2535
+    },
+    {
+      "name": "AirportInMenu3",
+      "path": "status-icons/wifi/AirportInMenu3.pdf",
+      "symbol": "sl_embedded_048_AirportInMenu3",
+      "sha256": "aed2509369ed4c5264e61abb5cd3f4ec26f51dd638ba35064c6063a691fc0f48",
+      "size": 2063
+    },
+    {
+      "name": "AirportInMenu4",
+      "path": "status-icons/wifi/AirportInMenu4.pdf",
+      "symbol": "sl_embedded_049_AirportInMenu4",
+      "sha256": "f43b35e5a2640611efc08a1d33456f72e36ca0ba2c76b7de9e70d2cc3a474d87",
+      "size": 1298
+    },
+    {
+      "name": "AirPortMonitor",
+      "path": "status-icons/wifi/AirPortMonitor.pdf",
+      "symbol": "sl_embedded_050_AirPortMonitor",
+      "sha256": "fc5af4a16225f071e9d7a64b8381d639f2eb612f5bacc52c1895dae45cfcf016",
+      "size": 1861
+    },
+    {
+      "name": "AirPortNetwork",
+      "path": "status-icons/wifi/AirPortNetwork.pdf",
+      "symbol": "sl_embedded_051_AirPortNetwork",
+      "sha256": "46444cda675c68905fd7a7d75ddf65593eb0f7f364529e85eb4abdccbea97f43",
+      "size": 3756
+    },
+    {
+      "name": "AirPortOff",
+      "path": "status-icons/wifi/AirPortOff.pdf",
+      "symbol": "sl_embedded_052_AirPortOff",
+      "sha256": "5ac956bc8d3366200b88b1569c376e85eb74cdad9267253cd037d3d769e38d81",
+      "size": 1126
+    },
+    {
+      "name": "AirPortScanning1",
+      "path": "status-icons/wifi/AirPortScanning1.pdf",
+      "symbol": "sl_embedded_053_AirPortScanning1",
+      "sha256": "7b42e34c581d756c802d338336bb587864144135d082f298e5ab7afa75d759e5",
+      "size": 2978
+    },
+    {
+      "name": "AirPortScanning2",
+      "path": "status-icons/wifi/AirPortScanning2.pdf",
+      "symbol": "sl_embedded_054_AirPortScanning2",
+      "sha256": "9eb387c3fe154f61613f8ab56e14bcb16adb2e0e16a60e03474fe73db0954502",
+      "size": 2943
+    },
+    {
+      "name": "AirPortScanning3",
+      "path": "status-icons/wifi/AirPortScanning3.pdf",
+      "symbol": "sl_embedded_055_AirPortScanning3",
+      "sha256": "7c4687ad515f3e8463b338822f8866ae56f43efea885cd5fc3b80b4e1e23b608",
+      "size": 2940
+    },
+    {
+      "name": "AirPortScanning4",
+      "path": "status-icons/wifi/AirPortScanning4.pdf",
+      "symbol": "sl_embedded_056_AirPortScanning4",
+      "sha256": "eb3f4143c12fa0a776cd2c5de999e32e3db8cdb11351af539c78b56855f29634",
+      "size": 2940
+    },
+    {
+      "name": "AirPortSecure",
+      "path": "status-icons/wifi/AirPortSecure.pdf",
+      "symbol": "sl_embedded_057_AirPortSecure",
+      "sha256": "f13a96321bdfa5634352da226f5cc40d9991f0448b83a98fd181e2c7db69f054",
+      "size": 1782
+    },
+    {
+      "name": "AirPortSWBS",
+      "path": "status-icons/wifi/AirPortSWBS.pdf",
+      "symbol": "sl_embedded_058_AirPortSWBS",
+      "sha256": "c4708633ced106c27d6babef7a4d25c729215c2b4cade72512034c0d137f1ac5",
+      "size": 1830
+    },
+    {
+      "name": "AirPortWarning",
+      "path": "status-icons/wifi/AirPortWarning.pdf",
+      "symbol": "sl_embedded_059_AirPortWarning",
+      "sha256": "d8e30236f17af7d9e36ab411de0438df82ab1f819df2ef26a4cd6f994b8de619",
+      "size": 3632
+    },
+    {
+      "name": "AlertTriangleSmall",
+      "path": "status-icons/wifi/AlertTriangleSmall.pdf",
+      "symbol": "sl_embedded_060_AlertTriangleSmall",
+      "sha256": "25ccaa4e2396e1425d95fff4c0c14d915af1df705c24556bcbde55bfd682128c",
+      "size": 1112
+    },
+    {
+      "name": "AppleMenuNormal",
+      "path": "apple-menu/AppleMenuNormal@2x.png",
+      "symbol": "sl_embedded_061_AppleMenuNormal",
+      "sha256": "5a0b163349a016ec953f0ae3963ad64e0e97b898577e831b9262fdeed8812d25",
+      "size": 1446
+    },
+    {
+      "name": "AppleMenuSelected",
+      "path": "apple-menu/AppleMenuSelected@2x.png",
+      "symbol": "sl_embedded_062_AppleMenuSelected",
+      "sha256": "2bb6b4b3f47beb7261cd74fdf0819ac450144a866c769b6a45c3d5b8e5f85167",
+      "size": 1937
+    }
+  ]
+}

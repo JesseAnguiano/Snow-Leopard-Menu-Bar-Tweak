@@ -1,0 +1,237 @@
+#!/bin/bash
+# Runtime installer embedded in the generated .pkg.
+# Compatible with the system Bash shipped by macOS Sequoia.
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(/usr/bin/dirname -- "$0")" && pwd)"
+FILES_DIR="${SCRIPT_DIR}/files"
+CONFIG="${FILES_DIR}/project-config.sh"
+[[ -f "${CONFIG}" && ! -L "${CONFIG}" ]] || { /bin/echo "Snow Leopard Menu Bar Tweak: package configuration is missing." >&2; exit 1; }
+# shellcheck source=/dev/null
+source "${CONFIG}"
+
+TWEAK_DIR="${SL_TWEAK_DIR}"
+BACKUP_ROOT="${SL_BACKUP_ROOT}"
+LABEL="${SL_WALLPAPER_LABEL}"
+UNIFIED="${SL_UNIFIED_NAME}"
+BLUE="${SL_BLUE_NAME}"
+
+fail() {
+    /bin/echo "Snow Leopard Menu Bar Tweak: $*" >&2
+    exit 1
+}
+
+require_resource() {
+    [[ -f "${FILES_DIR}/$1" && ! -L "${FILES_DIR}/$1" ]] || fail "Package resource is missing or invalid: $1"
+}
+
+PRODUCT_VERSION="$(/usr/bin/sw_vers -productVersion 2>/dev/null || true)"
+case "${PRODUCT_VERSION}" in
+    "${SL_SUPPORTED_MACOS_MAJOR}."*) ;;
+    *) fail "macOS Sequoia ${SL_SUPPORTED_MACOS_MAJOR}.x is required; detected ${PRODUCT_VERSION:-unknown}." ;;
+esac
+
+[[ -d "${TWEAK_DIR}" && ! -L "${TWEAK_DIR}" ]] || fail "Ammonia was not found at a valid tweak directory: ${TWEAK_DIR}"
+[[ ! -L "${BACKUP_ROOT}" ]] || fail "Refusing to use a symbolic-link backup directory."
+
+for resource in \
+    "${UNIFIED}" \
+    "${BLUE}" \
+    "${UNIFIED}.blacklist" \
+    "${BLUE}.blacklist" \
+    LaunchAgent.plist
+ do
+    require_resource "${resource}"
+done
+[[ -d "${FILES_DIR}/SnowLeopardWallpaperSource.app" && ! -L "${FILES_DIR}/SnowLeopardWallpaperSource.app" ]] || fail "Wallpaper helper is missing or invalid."
+
+# Runtime components arrive precompiled and ad-hoc signed by the build Mac.
+/usr/bin/codesign --verify --strict "${FILES_DIR}/${UNIFIED}" || fail "Unified dylib signature is invalid."
+/usr/bin/codesign --verify --strict "${FILES_DIR}/${BLUE}" || fail "BlueSelection dylib signature is invalid."
+/usr/bin/codesign --verify --deep --strict "${FILES_DIR}/SnowLeopardWallpaperSource.app" || fail "Wallpaper helper signature is invalid."
+
+CONSOLE_USER="$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || true)"
+case "${CONSOLE_USER}" in
+    ""|root|loginwindow) fail "No logged-in desktop user was found. Log in normally and run the package again." ;;
+esac
+USER_UID="$(/usr/bin/id -u "${CONSOLE_USER}")"
+USER_GID="$(/usr/bin/id -g "${CONSOLE_USER}")"
+USER_HOME="$(/usr/bin/dscacheutil -q user -a name "${CONSOLE_USER}" 2>/dev/null | /usr/bin/awk '/^dir: / {sub(/^dir: /, ""); print; exit}')"
+[[ -n "${USER_HOME}" && -d "${USER_HOME}" && ! -L "${USER_HOME}" ]] || fail "Could not determine a safe home folder for ${CONSOLE_USER}."
+
+STAMP="$(/bin/date '+%Y%m%d-%H%M%S')-$$"
+SYSTEM_BACKUP="${BACKUP_ROOT}/SnowLeopardMenuBar-pkg-${STAMP}"
+SUPPORT_DIR="${USER_HOME}/Library/Application Support/SnowLeopardMenuBar"
+HELPER_APP="${SUPPORT_DIR}/SnowLeopardWallpaperSource.app"
+AGENTS_DIR="${USER_HOME}/Library/LaunchAgents"
+AGENT_PLIST="${AGENTS_DIR}/${LABEL}.plist"
+USER_BACKUP="${SUPPORT_DIR}/backups/pkg-${STAMP}"
+
+for path in "${SUPPORT_DIR}" "${HELPER_APP}" "${AGENTS_DIR}" "${AGENT_PLIST}"; do
+    [[ ! -L "${path}" ]] || fail "Refusing to replace symbolic link: ${path}"
+done
+/bin/mkdir -p "${SYSTEM_BACKUP}" "${SUPPORT_DIR}" "${AGENTS_DIR}" "${USER_BACKUP}"
+/usr/sbin/chown root:wheel "${SYSTEM_BACKUP}"
+/bin/chmod 700 "${SYSTEM_BACKUP}"
+
+USER_DEFAULTS=(/usr/bin/sudo -H -u "${CONSOLE_USER}" /usr/bin/defaults)
+
+read_current_host_integer() {
+    local key="$1" value
+    value="$("${USER_DEFAULTS[@]}" -currentHost read -globalDomain "${key}" 2>/dev/null)" || return 1
+    [[ "${value}" =~ ^-?[0-9]+$ ]] || fail "${key} contains a non-integer value: ${value}"
+    /usr/bin/printf '%s' "${value}"
+}
+
+read_domain_integer() {
+    local domain="$1" key="$2" value
+    value="$("${USER_DEFAULTS[@]}" read "${domain}" "${key}" 2>/dev/null)" || return 1
+    [[ "${value}" =~ ^-?[0-9]+$ ]] || fail "${domain}/${key} contains a non-integer value: ${value}"
+    /usr/bin/printf '%s' "${value}"
+}
+
+restore_current_host_integer() {
+    local key="$1" present="$2" value="$3"
+    if [[ "${present}" -eq 1 ]]; then
+        "${USER_DEFAULTS[@]}" -currentHost write -globalDomain "${key}" -int "${value}" >/dev/null
+    else
+        "${USER_DEFAULTS[@]}" -currentHost delete -globalDomain "${key}" >/dev/null 2>&1 || true
+    fi
+}
+
+restore_domain_integer() {
+    local domain="$1" key="$2" present="$3" value="$4"
+    if [[ "${present}" -eq 1 ]]; then
+        "${USER_DEFAULTS[@]}" write "${domain}" "${key}" -int "${value}" >/dev/null
+    else
+        "${USER_DEFAULTS[@]}" delete "${domain}" "${key}" >/dev/null 2>&1 || true
+    fi
+}
+
+STATUS_SPACING_PRESENT=0; STATUS_SPACING_PREVIOUS=""
+STATUS_PADDING_PRESENT=0; STATUS_PADDING_PREVIOUS=""
+SPOTLIGHT_POSITION_PRESENT=0; SPOTLIGHT_POSITION_PREVIOUS=""
+CLOCK_POSITION_PRESENT=0; CLOCK_POSITION_PREVIOUS=""
+if STATUS_SPACING_PREVIOUS="$(read_current_host_integer "${SL_STATUS_SPACING_KEY}")"; then STATUS_SPACING_PRESENT=1; fi
+if STATUS_PADDING_PREVIOUS="$(read_current_host_integer "${SL_STATUS_PADDING_KEY}")"; then STATUS_PADDING_PRESENT=1; fi
+if SPOTLIGHT_POSITION_PREVIOUS="$(read_domain_integer "${SL_SPOTLIGHT_DOMAIN}" "${SL_SPOTLIGHT_POSITION_KEY}")"; then SPOTLIGHT_POSITION_PRESENT=1; fi
+if CLOCK_POSITION_PREVIOUS="$(read_domain_integer "${SL_CLOCK_DOMAIN}" "${SL_CLOCK_POSITION_KEY}")"; then CLOCK_POSITION_PRESENT=1; fi
+
+MANAGED=(
+    "${UNIFIED}" "${UNIFIED}.blacklist" "${UNIFIED}.whitelist"
+    "${BLUE}" "${BLUE}.blacklist" "${BLUE}.whitelist"
+)
+for name in "${SL_LEGACY_DYLIBS[@]}"; do
+    MANAGED+=("${name}" "${name}.blacklist" "${name}.whitelist")
+done
+for name in "${MANAGED[@]}"; do
+    [[ ! -L "${TWEAK_DIR}/${name}" ]] || fail "Refusing to replace symbolic link: ${TWEAK_DIR}/${name}"
+done
+
+HELPER_WAS_PRESENT=0
+AGENT_WAS_PRESENT=0
+PREFERENCES_CHANGED=0
+COMMIT_COMPLETE=0
+INSTALLED_NAMES=()
+BACKED_UP_NAMES=()
+
+rollback_install() {
+    local status=$?
+    trap - EXIT HUP INT TERM
+    set +e
+    if [[ "${COMMIT_COMPLETE}" -eq 0 ]]; then
+        /bin/launchctl bootout "gui/${USER_UID}/${LABEL}" >/dev/null 2>&1 || true
+        /usr/bin/pkill -u "${USER_UID}" -x SnowLeopardWallpaperSource >/dev/null 2>&1 || true
+
+        /bin/rm -rf "${HELPER_APP}"
+        /bin/rm -f "${AGENT_PLIST}"
+        if [[ "${HELPER_WAS_PRESENT}" -eq 1 ]]; then
+            /usr/bin/ditto "${USER_BACKUP}/SnowLeopardWallpaperSource.app" "${HELPER_APP}"
+        fi
+        if [[ "${AGENT_WAS_PRESENT}" -eq 1 ]]; then
+            /bin/cp -p "${USER_BACKUP}/agent.plist" "${AGENT_PLIST}"
+            /bin/launchctl bootstrap "gui/${USER_UID}" "${AGENT_PLIST}" >/dev/null 2>&1 || true
+        fi
+
+        if [[ "${PREFERENCES_CHANGED}" -eq 1 ]]; then
+            restore_current_host_integer "${SL_STATUS_SPACING_KEY}" "${STATUS_SPACING_PRESENT}" "${STATUS_SPACING_PREVIOUS}"
+            restore_current_host_integer "${SL_STATUS_PADDING_KEY}" "${STATUS_PADDING_PRESENT}" "${STATUS_PADDING_PREVIOUS}"
+            restore_domain_integer "${SL_SPOTLIGHT_DOMAIN}" "${SL_SPOTLIGHT_POSITION_KEY}" "${SPOTLIGHT_POSITION_PRESENT}" "${SPOTLIGHT_POSITION_PREVIOUS}"
+            restore_domain_integer "${SL_CLOCK_DOMAIN}" "${SL_CLOCK_POSITION_KEY}" "${CLOCK_POSITION_PRESENT}" "${CLOCK_POSITION_PREVIOUS}"
+        fi
+
+        for name in "${INSTALLED_NAMES[@]}"; do /bin/rm -f "${TWEAK_DIR}/${name}"; done
+        for name in "${BACKED_UP_NAMES[@]}"; do
+            [[ ! -e "${SYSTEM_BACKUP}/${name}" ]] || /bin/mv -f "${SYSTEM_BACKUP}/${name}" "${TWEAK_DIR}/${name}"
+        done
+        /bin/echo "Snow Leopard Menu Bar Tweak installation failed; previous files were restored." >&2
+    fi
+    exit "${status}"
+}
+trap rollback_install EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+/bin/launchctl bootout "gui/${USER_UID}/${LABEL}" >/dev/null 2>&1 || true
+/usr/bin/pkill -u "${USER_UID}" -x SnowLeopardWallpaperSource >/dev/null 2>&1 || true
+
+if [[ -e "${HELPER_APP}" ]]; then
+    HELPER_WAS_PRESENT=1
+    /usr/bin/ditto "${HELPER_APP}" "${USER_BACKUP}/SnowLeopardWallpaperSource.app"
+fi
+if [[ -e "${AGENT_PLIST}" ]]; then
+    AGENT_WAS_PRESENT=1
+    /bin/cp -p "${AGENT_PLIST}" "${USER_BACKUP}/agent.plist"
+fi
+
+for name in "${MANAGED[@]}"; do
+    live="${TWEAK_DIR}/${name}"
+    if [[ -e "${live}" ]]; then
+        /bin/mv "${live}" "${SYSTEM_BACKUP}/${name}"
+        BACKED_UP_NAMES+=("${name}")
+    fi
+done
+
+install_tweak_file() {
+    local mode="$1" name="$2"
+    /usr/bin/install -o root -g wheel -m "${mode}" "${FILES_DIR}/${name}" "${TWEAK_DIR}/${name}"
+    INSTALLED_NAMES+=("${name}")
+}
+
+# Filters are installed first so Ammonia never sees an unfiltered new dylib.
+install_tweak_file 644 "${UNIFIED}.blacklist"
+install_tweak_file 644 "${BLUE}.blacklist"
+install_tweak_file 755 "${BLUE}"
+install_tweak_file 755 "${UNIFIED}"
+/usr/bin/codesign --verify --strict "${TWEAK_DIR}/${UNIFIED}" || fail "Installed Unified dylib failed signature verification."
+/usr/bin/codesign --verify --strict "${TWEAK_DIR}/${BLUE}" || fail "Installed BlueSelection dylib failed signature verification."
+
+/bin/rm -rf "${HELPER_APP}"
+/usr/bin/ditto "${FILES_DIR}/SnowLeopardWallpaperSource.app" "${HELPER_APP}"
+/bin/cp "${FILES_DIR}/LaunchAgent.plist" "${AGENT_PLIST}"
+/usr/bin/plutil -replace ProgramArguments.0 -string "${HELPER_APP}/Contents/MacOS/SnowLeopardWallpaperSource" "${AGENT_PLIST}"
+/usr/bin/plutil -lint "${AGENT_PLIST}" >/dev/null || fail "Generated LaunchAgent plist is invalid."
+/bin/chmod 644 "${AGENT_PLIST}"
+/bin/chown -R "${USER_UID}:${USER_GID}" "${SUPPORT_DIR}"
+/bin/chown "${USER_UID}:${USER_GID}" "${AGENT_PLIST}"
+/bin/launchctl bootstrap "gui/${USER_UID}" "${AGENT_PLIST}" || fail "Could not start the wallpaper helper LaunchAgent."
+/bin/launchctl kickstart -k "gui/${USER_UID}/${LABEL}" >/dev/null 2>&1 || true
+
+PREFERENCES_CHANGED=1
+"${USER_DEFAULTS[@]}" -currentHost write -globalDomain "${SL_STATUS_SPACING_KEY}" -int "${SL_STATUS_SPACING}"
+"${USER_DEFAULTS[@]}" -currentHost write -globalDomain "${SL_STATUS_PADDING_KEY}" -int "${SL_STATUS_PADDING}"
+"${USER_DEFAULTS[@]}" write "${SL_SPOTLIGHT_DOMAIN}" "${SL_SPOTLIGHT_POSITION_KEY}" -int "${SL_SPOTLIGHT_PERSISTED_POSITION}"
+"${USER_DEFAULTS[@]}" write "${SL_CLOCK_DOMAIN}" "${SL_CLOCK_POSITION_KEY}" -int "${SL_CLOCK_PERSISTED_POSITION}"
+
+COMMIT_COMPLETE=1
+trap - EXIT HUP INT TERM
+
+for process in Finder 'System Settings' Spotlight ControlCenter SystemUIServer Dock; do
+    /usr/bin/killall "${process}" >/dev/null 2>&1 || true
+done
+
+/bin/echo "Snow Leopard Menu Bar Tweak installed successfully."
+/bin/echo "Backup: ${SYSTEM_BACKUP}"
+/bin/echo "Wallpaper helper: ${HELPER_APP}"
+exit 0
