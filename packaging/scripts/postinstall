@@ -139,6 +139,7 @@ rollback_install() {
     local status=$?
     trap - EXIT HUP INT TERM
     set +e
+    set +u
     if [[ "${COMMIT_COMPLETE}" -eq 0 ]]; then
         /bin/launchctl bootout "gui/${USER_UID}/${LABEL}" >/dev/null 2>&1 || true
         /usr/bin/pkill -u "${USER_UID}" -x SnowLeopardWallpaperSource >/dev/null 2>&1 || true
@@ -213,8 +214,8 @@ install_tweak_file 755 "${UNIFIED}"
 /usr/bin/plutil -replace ProgramArguments.0 -string "${HELPER_APP}/Contents/MacOS/SnowLeopardWallpaperSource" "${AGENT_PLIST}"
 /usr/bin/plutil -lint "${AGENT_PLIST}" >/dev/null || fail "Generated LaunchAgent plist is invalid."
 /bin/chmod 644 "${AGENT_PLIST}"
-/bin/chown -R "${USER_UID}:${USER_GID}" "${SUPPORT_DIR}"
-/bin/chown "${USER_UID}:${USER_GID}" "${AGENT_PLIST}"
+/usr/sbin/chown -R "${USER_UID}:${USER_GID}" "${SUPPORT_DIR}"
+/usr/sbin/chown "${USER_UID}:${USER_GID}" "${AGENT_PLIST}"
 /bin/launchctl bootstrap "gui/${USER_UID}" "${AGENT_PLIST}" || fail "Could not start the wallpaper helper LaunchAgent."
 /bin/launchctl kickstart -k "gui/${USER_UID}/${LABEL}" >/dev/null 2>&1 || true
 
