@@ -8,7 +8,7 @@
 #import "SelectionRenderer.h"
 #import "StatusSelectionIPC.h"
 
-const char SLSnowLeopardExternalStatusCapabilities[] =
+const char SLSnowLeopardExternalStatusCapabilities[] SL_CAPABILITY_EXPORT =
     "snowLeopardExternalStatus=modular-v2 owner=unified";
 
 /*

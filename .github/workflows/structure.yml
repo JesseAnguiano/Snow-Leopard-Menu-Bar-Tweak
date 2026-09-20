@@ -1,0 +1,23 @@
+name: Repository checks / Verificaciones del repositorio
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source tree / Validar source
+        run: make check
+      - name: Run deterministic tests on Apple Silicon / Ejecutar tests deterministas en Apple Silicon
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then
+            make test
+          else
+            echo "Skipping arm64 runtime executables on $(uname -m)."
+          fi

@@ -15,7 +15,7 @@
 #import "SelectionRenderer.h"
 #import "WallpaperWire.h"
 
-const char SLSnowLeopardUnifiedCapabilities[] =
+const char SLSnowLeopardUnifiedCapabilities[] SL_CAPABILITY_EXPORT =
     "snowLeopardMenuBarUnified=modular-v2 "
     "compatibility=sequoia15 "
     "runtimeResources=0 "
@@ -189,23 +189,16 @@ static CGGradientRef CreateAlphaGradient(
     CGFloat blue) {
     if (!space || !locations || !alphas || count == 0) return NULL;
 
-    CGColorRef colours[count];
+    CGFloat components[count * 4];
     for (NSUInteger index = 0; index < count; index++) {
-        colours[index] = SLCreateSRGBColor(
-            red, green, blue, alphas[index]);
+        NSUInteger base = index * 4;
+        components[base + 0] = red;
+        components[base + 1] = green;
+        components[base + 2] = blue;
+        components[base + 3] = alphas[index];
     }
-    CFArrayRef colourArray = CFArrayCreate(
-        kCFAllocatorDefault,
-        (const void **)colours,
-        count,
-        &kCFTypeArrayCallBacks);
-    CGGradientRef gradient = CGGradientCreateWithColors(
-        space, colourArray, locations);
-    CFRelease(colourArray);
-    for (NSUInteger index = 0; index < count; index++) {
-        CGColorRelease(colours[index]);
-    }
-    return gradient;
+    return CGGradientCreateWithColorComponents(
+        space, components, locations, count);
 }
 
 static void PreparePalette(void) {

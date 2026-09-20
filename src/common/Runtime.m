@@ -57,12 +57,9 @@ Ivar SLOwnInstanceVariable(Class cls, const char *name) {
 
 id SLObjectIvar(id object, const char *name) {
     if (!object || !name) return nil;
-    for (Class cls = object_getClass(object); cls; cls = class_getSuperclass(cls)) {
-        Ivar ivar = class_getInstanceVariable(cls, name);
-        const char *type = ivar ? ivar_getTypeEncoding(ivar) : NULL;
-        if (type && type[0] == '@') return object_getIvar(object, ivar);
-    }
-    return nil;
+    Ivar ivar = class_getInstanceVariable(object_getClass(object), name);
+    const char *type = ivar ? ivar_getTypeEncoding(ivar) : NULL;
+    return type && type[0] == '@' ? object_getIvar(object, ivar) : nil;
 }
 
 BOOL SLMethodMatches(Method method, const char *encoding) {

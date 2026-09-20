@@ -13,7 +13,7 @@
 #import "Runtime.h"
 #import "SelectionRenderer.h"
 
-const char SLSnowLeopardStatusIconCapabilities[] =
+const char SLSnowLeopardStatusIconCapabilities[] SL_CAPABILITY_EXPORT =
     "snowLeopardStatusIcons=embedded-v2 owner=unified";
 
 // Embedded Snow Leopard status icons for the Apple-owned right side of the

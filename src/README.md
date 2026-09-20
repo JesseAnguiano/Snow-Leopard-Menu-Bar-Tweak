@@ -43,7 +43,7 @@ src/
 | Area | Source | Runtime owner |
 |---|---|---|
 | Runtime helpers, ABI checks, process checks, logging | `common/Runtime.m` | Both dylibs |
-| Exact Snow Leopard blue renderer | `common/SelectionRenderer.m` | Both dylibs |
+| Classic Snow Leopard blue renderer | `common/SelectionRenderer.m` | Both dylibs |
 | Menu-bar material, Apple item, top-menu selection | `menubar/MenuBar.m` | Unified |
 | Menu-bar wallpaper and lower-shadow render pieces | `menubar/rendering/` | Unified |
 | Popup background, mask and placement | `menus/MenuPopup.m` | Unified |
@@ -64,6 +64,7 @@ src/
 5. **Keep unrelated typography out.** This tweak leaves system/app fonts alone.
 6. **Keep production logging off by default.** Use `SNOW_LEOPARD_MENU_BAR_DEBUG=1` only for diagnosis.
 7. **Optimize for maintainability.** Prefer smaller APIs, fewer owners and deleted dead branches over minification.
+8. **Keep build policy centralized.** Compiler/architecture flags belong in `scripts/toolchain.sh`, not individual source modules.
 
 ## Build graph / Grafo de compilación
 

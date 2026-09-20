@@ -1,141 +1,111 @@
 # Snow Leopard Menu Bar Tweak
 
-A Snow Leopard-inspired menu bar for **macOS Sequoia**.
+A Snow Leopard-inspired menu bar and menu selection tweak for **macOS Sequoia 15.x** on Apple Silicon.
 
-[English](#english) · [Español](#español)
+![Snow Leopard-style menu bar](docs/images/menu-bar-light.png)
 
-## Screenshots / Capturas
+![Classic blue selection](docs/images/finder-menu.png)
 
-![Snow Leopard-style menu bar with a light wallpaper](docs/images/menu-bar-light.png)
+## What it changes
 
-![Classic blue Finder menu selection](docs/images/finder-menu.png)
+- Snow Leopard-style menu bar appearance
+- Classic popup/context menu shape and shadow
+- Blue menu and sidebar selections
+- Snow Leopard-style submenu arrows
+- Classic status/menu bar icons
 
-![Snow Leopard-style menu bar with a purple wallpaper](docs/images/menu-bar-purple.png)
+The project uses two separate runtime components:
 
-![Snow Leopard-style menu bar with a green wallpaper](docs/images/menu-bar-green.png)
+- `libSnowLeopardMenuBarUnified.dylib` — menu bar, popup menus and status items
+- `libSnowLeopardBlueSelection.dylib` — menu, Dock and sidebar selection visuals
 
----
+## Requirements
 
-## English
+- macOS Sequoia **15.x**
+- Apple Silicon
+- Ammonia installed and working
 
-### What it changes
+## Install
 
-- Snow Leopard-style translucent menu bar
-- Wallpaper-aware menu-bar appearance
-- Classic blue menu and contextual-menu selections
-- Snow Leopard-style status icons
-- Classic source-list/sidebar selections in supported apps
+For a normal release, install the `.pkg` from GitHub Releases.
 
-### Requirements
-
-- **macOS Sequoia 15.x**
-- **Apple Silicon**
-- **Ammonia** installed and working
-
-### Install
-
-The easiest option is to download the latest **`.pkg` from GitHub Releases** and open it with macOS Installer.
-
-The prebuilt package does **not** require Xcode or Command Line Tools on the Mac where it is installed. Ammonia must already be installed.
-
-### Build the `.pkg` yourself
-
-Clone or download the repository, then run:
+To build and install from source:
 
 ```bash
-./Build-Package.command
+./Install.command
 ```
 
-The finished package will be created in `dist/`.
+Xcode Command Line Tools are required when building from source.
 
-Building from source requires Xcode Command Line Tools:
+## Uninstall
 
 ```bash
-xcode-select --install
+./Uninstall.command
 ```
 
-You can also build and install directly from source with `Install.command`.
+## Build
 
-### Uninstall
-
-Open:
-
-```text
-Uninstall.command
+```bash
+make all
+make test
 ```
 
-This removes the tweak components installed by this project. It does not remove Ammonia.
+Create a package:
 
-### Notes
+```bash
+make package
+```
 
-This project uses private macOS behavior, so major macOS updates may require changes to the tweak.
+Run the final repository/release checks:
 
-For development, manual installation, architecture, and other technical details, see [`docs/`](docs/README.md).
+```bash
+make release-check
+```
 
-### License
+## Documentation
 
-MIT. See [`LICENSE`](LICENSE).
+Developer and technical documentation is in [`docs/`](docs/README.md).
+
+## Notes
+
+This project uses private macOS APIs and runtime injection. System updates can change internal AppKit behavior, so test new macOS releases before installing.
+
+The tweak does **not** require Glow.
+
+## License
+
+Code is released under the MIT License. See [`LICENSE`](LICENSE). Artwork or reference material may have separate rights.
 
 ---
 
 ## Español
 
-Tweak inspirado en la barra de menús de **Mac OS X Snow Leopard** para macOS Sequoia.
+Tweak inspirado en **Mac OS X Snow Leopard** para macOS Sequoia 15.x en Apple Silicon.
 
-### Qué cambia
+### Qué modifica
 
-- Barra de menús translúcida estilo Snow Leopard
-- Apariencia adaptada al wallpaper
-- Selecciones azules clásicas en menús y menús contextuales
-- Iconos de estado estilo Snow Leopard
-- Selecciones clásicas en sidebars/source lists de apps compatibles
+- apariencia clásica de la barra de menús
+- forma y sombra de menús emergentes/contextuales
+- selección azul en menús y sidebars
+- flechas de submenu estilo Snow Leopard
+- iconos clásicos de la barra de menús
 
 ### Requisitos
 
-- **macOS Sequoia 15.x**
-- **Apple Silicon**
-- **Ammonia** instalado y funcionando
+- macOS Sequoia **15.x**
+- Apple Silicon
+- Ammonia instalado y funcionando
 
-### Instalación
-
-La opción más sencilla es descargar el **`.pkg` más reciente desde GitHub Releases** y abrirlo con Installer de macOS.
-
-El paquete precompilado **no necesita Xcode ni Command Line Tools** en el Mac donde se instala. Ammonia debe estar instalado previamente.
-
-### Compilar el `.pkg`
-
-Clona o descarga el repositorio y ejecuta:
+### Instalar desde source
 
 ```bash
-./Build-Package.command
+./Install.command
 ```
 
-El paquete terminado se creará dentro de `dist/`.
-
-Para compilar desde el código fuente sí necesitas Xcode Command Line Tools:
+### Desinstalar
 
 ```bash
-xcode-select --install
+./Uninstall.command
 ```
 
-También puedes compilar e instalar directamente desde el código fuente usando `Install.command`.
-
-### Desinstalación
-
-Abre:
-
-```text
-Uninstall.command
-```
-
-Esto elimina los componentes instalados por el proyecto, pero no elimina Ammonia.
-
-### Notas
-
-El proyecto utiliza comportamiento privado de macOS, por lo que una actualización importante del sistema puede requerir cambios en el tweak.
-
-Para instalación manual, desarrollo, arquitectura y detalles técnicos consulta [`docs/`](docs/README.md).
-
-### Licencia
-
-MIT. Consulta [`LICENSE`](LICENSE).
+La documentación técnica está en [`docs/`](docs/README.md). El proyecto no depende de Glow.

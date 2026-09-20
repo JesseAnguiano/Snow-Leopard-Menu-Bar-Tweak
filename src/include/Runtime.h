@@ -10,8 +10,10 @@ extern "C" {
 
 #if defined(__GNUC__)
 #define SL_INTERNAL __attribute__((visibility("hidden")))
+#define SL_CAPABILITY_EXPORT __attribute__((used, visibility("default")))
 #else
 #define SL_INTERNAL
+#define SL_CAPABILITY_EXPORT
 #endif
 
 SL_INTERNAL BOOL SLRuntimeIsMacOSSequoia(void);

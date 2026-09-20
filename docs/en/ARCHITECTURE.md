@@ -2,97 +2,67 @@
 
 > [Versión en español](../es/ARCHITECTURE.md)
 
-The project intentionally ships **two injected dylibs** plus one wallpaper helper. The split is based on runtime ownership and failure scope, not on historical file boundaries.
+The project ships **two injected dylibs** plus one wallpaper helper. The split is deliberate: each component owns a distinct runtime surface and process scope.
 
 ## Runtime components
 
 ### `libSnowLeopardMenuBarUnified.dylib`
 
-Owns surfaces that belong to the menu bar itself:
+Owns menu-bar and popup structure:
 
 - wallpaper-aware menu-bar material and lower shadow;
 - Apple menu item geometry/artwork and top-level menu selection;
-- popup-menu background, mask, corners, and placement;
-- Apple/system status items in Control Center, SystemUIServer, and Spotlight;
-- third-party/external status-item styling;
+- popup background, mask, corners and placement;
+- system and external status-item styling;
 - embedded replacement status icons;
-- cross-process status-selection notification.
+- status-selection coordination.
 
-It is built from `src/common/`, `src/menubar/`, `src/menus/`, and `src/status/`.
+Built from `src/common/`, `src/menubar/`, `src/menus/` and `src/status/`.
 
 ### `libSnowLeopardBlueSelection.dylib`
 
-Owns selection state outside the top menu-bar/status-item surface:
+Owns selection behavior outside the top menu bar:
 
 - popup/context/Dock menu selection;
-- Finder/App Store/Music/System Settings source-list/sidebar selection;
-- Finder deselection synchronization;
-- App Store selected-text vibrancy compatibility.
+- submenu parent text/indicator state;
+- source-list/sidebar selection in supported apps;
+- Finder/App Store compatibility paths.
 
-It is built from `src/common/` and `src/selection/`.
+Built from `src/common/` and `src/selection/`.
 
-Keeping this dylib separate lets it use a different Ammonia process filter and limits the blast radius of private AppKit hooks.
+Keeping BlueSelection separate limits the process scope and failure radius of its private AppKit hooks.
 
 ### `SnowLeopardWallpaperSource.app`
 
-A background helper that reads the current wallpaper and publishes the small top-of-screen payload needed by injected processes. This avoids having every injected process independently decode the full wallpaper.
+Reads the active wallpaper once and publishes the small top-of-screen payload needed by injected processes. This avoids repeated full-wallpaper decoding across applications.
 
 ## Source ownership
 
-| Surface | Owner | Source |
+| Responsibility | Source | Runtime owner |
 |---|---|---|
-| Runtime/ABI helpers, process checks, debug logging | Shared | `src/common/Runtime.m` |
-| Exact 35-stop blue renderer | Shared | `src/common/SelectionRenderer.m` |
-| Menu-bar material, Apple item, top-menu selection | Unified | `src/menubar/MenuBar.m` |
-| Popup background/mask/placement | Unified | `src/menus/MenuPopup.m` |
-| Control Center/SystemUIServer/Spotlight | Unified | `src/status/SystemStatusItems.m` |
-| External/third-party status items | Unified | `src/status/ExternalStatusItems.m` |
-| Replacement status icons | Unified | `src/status/StatusIcons.m` |
-| Status-selection notification | Unified | `src/status/StatusSelectionIPC.m` |
-| Popup/context/Dock menu selection | BlueSelection | `src/selection/MenuSelection.m` |
-| Sidebar/source-list selection | BlueSelection | `src/selection/SidebarSelection.m` |
-| Wallpaper payload helper | Helper app | `src/wallpaper/WallpaperSource.m` |
+| ABI/runtime/process helpers and debug logging | `src/common/Runtime.m` | Shared |
+| Classic blue selection renderer | `src/common/SelectionRenderer.m` | Shared |
+| Menu-bar material and top-menu behavior | `src/menubar/MenuBar.m` | Unified |
+| Popup geometry/background/shadow integration | `src/menus/MenuPopup.m` | Unified |
+| System status items | `src/status/SystemStatusItems.m` | Unified |
+| External status items | `src/status/ExternalStatusItems.m` | Unified |
+| Embedded status artwork | `src/status/StatusIcons.m` | Unified |
+| Status-selection notification | `src/status/StatusSelectionIPC.m` | Unified |
+| Popup/context/Dock menu selection | `src/selection/MenuSelection.m` | BlueSelection |
+| Sidebar/source-list selection | `src/selection/SidebarSelection.m` | BlueSelection |
+| Wallpaper payload helper | `src/wallpaper/WallpaperSource.m` | Helper |
 
-The shorter map in [`src/README.md`](../../src/README.md) is the preferred starting point when changing code.
+## Design rules
 
-## One owner per surface
+1. **One owner per surface.** Do not add a second hook pipeline for a view already owned by another module.
+2. **One renderer for blue selection.** Feature modules decide *when* selection is active; `SelectionRenderer` decides *how* it looks.
+3. **Centralized runtime helpers.** Generic method/ivar/process helpers belong in `Runtime`, not copied into feature modules.
+4. **Guard private APIs.** Resolve the intended class/selector, validate encodings where practical, keep installation idempotent and retain the original implementation.
+5. **Generated data stays generated.** Build-time headers and binaries belong under `build/`/`dist/`, never in source control.
+6. **Fail locally.** A missing private class or incompatible ABI should disable the narrow feature rather than broaden process scope or crash unrelated apps.
 
-A major source of past regressions was duplicated hook pipelines. The current rule is strict:
+## Build boundaries
 
-- Unified owns **top-menu and status-item** selection.
-- BlueSelection owns **popup/context/Dock/sidebar** selection.
-- `SelectionRenderer.m` owns all Snow Leopard blue pixels.
+All project-owned binaries share compiler policy through `scripts/toolchain.sh`: Apple Silicon universal slices (`arm64 + arm64e`), ARC, `-O2`, strict warnings, hidden C-symbol visibility and linker dead stripping.
 
-Do not add another hook pipeline merely because another module can see the same view.
-
-## Embedded assets
-
-The repository tracks canonical artwork as normal files under `assets/`:
-
-- 61 status-icon assets under `assets/status-icons/`;
-- 2 Apple-menu PNGs under `assets/apple-menu/`.
-
-`assets/manifest.json` records each asset's path, C symbol, byte size, and SHA-256. `scripts/generate-embedded-assets.py` verifies those values and creates `build/generated/SnowLeopardEmbeddedAssets.h` during the build. The generated header is intentionally excluded from Git.
-
-The final dylib therefore keeps `runtimeResources=0`: the artwork is embedded in the compiled binary, while the repository remains readable.
-
-## Private API safety model
-
-Private AppKit hooks are installed only after:
-
-1. checking macOS Sequoia 15.x;
-2. checking the intended process identity/type;
-3. resolving the target class/selector;
-4. validating the observed method encoding;
-5. materializing an owned method when required;
-6. storing the original `IMP` so a partial installation can be rolled back.
-
-Reusable operations live in `Runtime`. New modules should not create their own generic swizzle/ivar helpers.
-
-## Build-time generated data
-
-Generated files belong under `build/` only. Source modules must not contain Base64/hex dumps of binary artwork, and generated C headers must not be committed.
-
-## Why the project is not one dylib
-
-Merging the two injected dylibs would reduce one file on disk but would couple unrelated process filters and private hooks. The current split is smaller operationally: a sidebar failure cannot force every menu-bar process to load the same selection hook set, and Dock coverage does not have to be added to the Unified filter.
+LTO is intentionally not enabled by default. Private Objective-C hook behavior is sensitive to toolchain/runtime changes and must be validated on the exact target macOS build before enabling more aggressive whole-program optimization.

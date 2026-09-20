@@ -44,11 +44,11 @@ fondo demasiado. La adaptación usa la conservación de color y la curva final
 medidas en la captura 10.6, tras alinear el fondo Aurora y normalizar los
 perfiles de color a sRGB:
 
-  En v11 esta curva se dibuja sobre la franja superior del wallpaper activo,
-  escalada al tamaño de pantalla, difundida con gaussiano 9 y ajustada con
-  brillo 0.02 y contraste 1.15.
-  La ruta aditiva v8 y el filtro privado v10 no modificaron el fondo instalado
-  y no se usan.
+  La adaptación actual dibuja esta curva sobre la franja superior del wallpaper
+  activo, la escala al tamaño de pantalla, aplica gaussiano 9 y ajusta brillo
+  0.02 y contraste 1.15.
+  Los experimentos aditivos/filtros privados anteriores no forman parte del
+  pipeline de producción.
   fila superior: 0.92437
   cuerpo: 0.83703, 0.82264, 0.80843, 0.79406, 0.77953,
           0.76442, 0.74930, 0.73393, 0.71861, 0.70359,
@@ -72,3 +72,7 @@ la película sigue siendo transparente, sin sustituirla por un relleno opaco.
 Los binarios originales no se copian al sistema: el tweak contiene únicamente
 los datos y métricas necesarios, evitando una dependencia externa en tiempo de
 ejecución.
+
+Nota sobre derechos
+-------------------
+La licencia MIT de este repositorio cubre el código del proyecto; no concede automáticamente derechos sobre artwork de terceros o de la plataforma. Antes de publicar o redistribuir artwork extraído/de referencia, confirma que tienes los derechos o permisos necesarios.

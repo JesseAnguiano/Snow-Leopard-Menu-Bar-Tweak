@@ -4,13 +4,14 @@
 #import <string.h>
 #import <unistd.h>
 #import <math.h>
+#import <dlfcn.h>
 
 #import "Runtime.h"
 #import "Protocol.h"
 #import "SelectionRenderer.h"
 
-const char SLSnowLeopardPopupCapabilities[] =
-    "snowLeopardPopup=modular-v2 background=owned selection=blueSelection";
+const char SLSnowLeopardPopupCapabilities[] SL_CAPABILITY_EXPORT =
+    "snowLeopardPopup=modular-v2 popupArchitecture=single-window-v19 background=owned-shaped-v12 mask=window-corner-mask-v16 shadow=windowserver-stable-v19 selection=blueSelection";
 
 // Popup-background/geometry module for the Unified dylib.
 //
@@ -22,6 +23,10 @@ const char SLSnowLeopardPopupCapabilities[] =
 typedef id (*InitFrameFn)(id, SEL, NSRect);
 typedef void (*VoidFn)(id, SEL);
 typedef void (*RadiusFn)(id, SEL, CGFloat);
+typedef id (*ObjectFn)(id, SEL);
+typedef BOOL (*BoolFn)(id, SEL);
+typedef void (*OrderWindowFn)(id, SEL, NSWindowOrderingMode, NSInteger);
+typedef void (*InvalidateShadowFn)(id, SEL);
 
 static InitFrameFn OriginalRootInit = NULL;
 static VoidFn OriginalRootLayout = NULL;
@@ -29,15 +34,54 @@ static RadiusFn OriginalMaterialRadius = NULL;
 static RadiusFn OriginalViewRadius = NULL;
 static RadiusFn OriginalPopupRadius = NULL;
 static RadiusFn OriginalManagerRadius = NULL;
+static ObjectFn OriginalPopupCornerMask = NULL;
+static BoolFn OriginalPopupCornerMaskShouldDefineShadow = NULL;
+static OrderWindowFn OriginalPopupOrderWindow = NULL;
+static InvalidateShadowFn OriginalPopupInvalidateShadow = NULL;
 
 static Class RootBackgroundClass = Nil;
 static Class PopupWindowClass = Nil;
 static Class ManagerWindowClass = Nil;
 
+static BOOL IsPopupWindow(id object);
+
 static BOOL Installed = NO;
 static NSUInteger InstallAttempts = 0;
 static char BackgroundFilmKey;
 static char SLPopupRootMaskKey;
+static char SLPopupIsSubmenuKey;
+static BOOL SLPopupCornerMaskHookInstalled = NO;
+static BOOL SLPopupCornerMaskShadowHookInstalled = NO;
+static BOOL SLPopupPresentationHookInstalled = NO;
+static BOOL SLPopupInvalidateShadowHookInstalled = NO;
+static NSImage *SLRoundedPopupCornerMaskImage = nil;
+static NSImage *SLSquareTopLeftPopupCornerMaskImage = nil;
+
+/*
+ * WindowServer shadow controls.
+ *
+ * SLSWindowSetShadowProperties is a private SkyLight SPI used by current
+ * low-level macOS projects. Resolve it dynamically so the tweak does not
+ * acquire a hard link-time dependency on a private framework symbol.
+ */
+typedef CGError (*SLWindowSetShadowPropertiesFn)(
+    uint32_t windowID,
+    CFDictionaryRef properties);
+
+static SLWindowSetShadowPropertiesFn
+    SLWindowSetShadowProperties = NULL;
+static BOOL SLWindowShadowSPIResolved = NO;
+static BOOL SLWindowShadowSPIAvailable = NO;
+
+/*
+ * Tuned against the compact, soft Snow Leopard menu shadow. Keep these
+ * constants centralized so visual calibration does not touch lifecycle or
+ * compositor-shape code.
+ */
+static const CGFloat SLPopupShadowDensity = 0.42;
+static const CGFloat SLPopupShadowRadius = 5.5;
+static const CGFloat SLPopupShadowVerticalOffset = 2.0;
+static const CGFloat SLPopupShadowRimDensity = 0.06;
 
 static CGFloat SLPendingMenuBarAnchorX = NAN;
 static CFTimeInterval SLPendingMenuBarAnchorTime = 0.0;
@@ -49,10 +93,12 @@ static id SLPopupAnchorObserverToken = nil;
 static CGColorRef PopupBackgroundColour = NULL;
 
 /*
- * Snow Leopard: parte superior cuadrada y un radio pequeño
- * únicamente en las dos esquinas inferiores.
+ * Snow Leopard used a compact five-point popup radius. Menus opened from
+ * the menu bar and nested submenus keep the upper-left corner square;
+ * free-standing contextual menus and pop-up controls remain rounded on all
+ * four corners.
  */
-static const CGFloat SLPopupBottomRadius = 3.0;
+static const CGFloat SLPopupCornerRadius = 5.0;
 
 /*
  * Un menú principal toca la zona inferior de la barra de menú.
@@ -84,10 +130,35 @@ static BOOL SLWindowIsAttachedToMenuBar(
 }
 
 /*
- * Los submenús de Snow Leopard tenían radio pequeño en las
- * cuatro esquinas.
+ * Los submenús se marcan en cuanto encontramos su popup padre. Esto evita
+ * confundir un menú contextual independiente con un submenú simplemente
+ * porque ambos usan NSPopupMenuWindow.
  */
-static CGPathRef SLCreateSubmenuAttachedPath(
+static BOOL SLPopupUsesSquareTopLeftCorner(
+    NSWindow *window
+) {
+    if (!window) {
+        return NO;
+    }
+
+    if (SLWindowIsAttachedToMenuBar(window)) {
+        return YES;
+    }
+
+    NSNumber *isSubmenu =
+        objc_getAssociatedObject(
+            window,
+            &SLPopupIsSubmenuKey);
+
+    return isSubmenu.boolValue;
+}
+
+/*
+ * Los menús desplegados desde la barra y los submenús conservan la esquina
+ * superior izquierda recta, como en Snow Leopard, mientras las otras tres
+ * esquinas mantienen el radio pequeño clásico.
+ */
+static CGPathRef SLCreateTopLeftSquareRoundedPath(
     CGRect bounds,
     CGFloat radius,
     BOOL geometryFlipped
@@ -279,7 +350,7 @@ static CGPathRef SLCreateSubmenuAttachedPath(
     return path;
 }
 
-static NSBezierPath *SLSubmenuAttachedBorderPath(
+static NSBezierPath *SLTopLeftSquareRoundedBorderPath(
     NSRect bounds,
     CGFloat radius
 ) {
@@ -314,7 +385,7 @@ static NSBezierPath *SLSubmenuAttachedBorderPath(
         [NSBezierPath bezierPath];
 
     /*
-     * Superior izquierda cuadrada.
+     * Superior izquierda cuadrada para la unión con la barra.
      */
     [path moveToPoint:
         NSMakePoint(
@@ -404,173 +475,320 @@ static NSBezierPath *SLSubmenuAttachedBorderPath(
     return path;
 }
 
-static CGPathRef SLCreateBottomRoundedPath(
+static CGPathRef SLCreateFullyRoundedPath(
     CGRect bounds,
-    CGFloat radius,
-    BOOL flipped
+    CGFloat radius
 ) CF_RETURNS_RETAINED {
-    CGFloat minX = CGRectGetMinX(bounds);
-    CGFloat maxX = CGRectGetMaxX(bounds);
-    CGFloat minY = CGRectGetMinY(bounds);
-    CGFloat maxY = CGRectGetMaxY(bounds);
-
-    CGFloat maximum =
+    CGFloat maximumRadius =
         MIN(
             CGRectGetWidth(bounds),
             CGRectGetHeight(bounds)
         ) * 0.5;
 
-    CGFloat resolved =
-        MAX(0.0, MIN(radius, maximum));
+    CGFloat resolvedRadius =
+        MAX(
+            0.0,
+            MIN(radius, maximumRadius)
+        );
 
-    CGMutablePathRef path =
-        CGPathCreateMutable();
-
-    if (flipped) {
-        /*
-         * minY es la parte superior visible.
-         */
-        CGPathMoveToPoint(
-            path, NULL,
-            minX, minY);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            maxX, minY);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            maxX, maxY - resolved);
-
-        CGPathAddArcToPoint(
-            path, NULL,
-            maxX, maxY,
-            maxX - resolved, maxY,
-            resolved);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            minX + resolved, maxY);
-
-        CGPathAddArcToPoint(
-            path, NULL,
-            minX, maxY,
-            minX, maxY - resolved,
-            resolved);
-    } else {
-        /*
-         * maxY es la parte superior visible.
-         */
-        CGPathMoveToPoint(
-            path, NULL,
-            minX, maxY);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            maxX, maxY);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            maxX, minY + resolved);
-
-        CGPathAddArcToPoint(
-            path, NULL,
-            maxX, minY,
-            maxX - resolved, minY,
-            resolved);
-
-        CGPathAddLineToPoint(
-            path, NULL,
-            minX + resolved, minY);
-
-        CGPathAddArcToPoint(
-            path, NULL,
-            minX, minY,
-            minX, minY + resolved,
-            resolved);
-    }
-
-    CGPathCloseSubpath(path);
-
-    return path;
+    return CGPathCreateWithRoundedRect(
+        bounds,
+        resolvedRadius,
+        resolvedRadius,
+        NULL);
 }
 
-static NSBezierPath *SLBottomRoundedBorderPath(
+
+/*
+ * WindowServer corner-mask bridge (v16)
+ *
+ * AppKit has a private -[NSWindow _cornerMask] path that is forwarded to the
+ * window compositor. Unlike a CALayer mask, this describes the real window
+ * silhouette to the compositor, so the native shadow can follow the same
+ * rounded outline instead of casting from a rectangular backing surface.
+ *
+ * This is installed only on NSPopupMenuWindow; ordinary application windows
+ * are left untouched.
+ */
+static NSImage *SLBuildPopupCornerMaskImage(
+    BOOL squareTopLeft
+) {
+    CGFloat radius = SLPopupCornerRadius;
+    CGFloat dimension = (radius * 2.0) + 1.0;
+    NSSize size = NSMakeSize(dimension, dimension);
+
+    NSImage *image = [NSImage
+        imageWithSize:size
+        flipped:NO
+        drawingHandler:^BOOL(NSRect destinationRect) {
+            CGContextRef context =
+                NSGraphicsContext.currentContext.CGContext;
+
+            if (!context) {
+                return NO;
+            }
+
+            CGPathRef path =
+                squareTopLeft
+                    ? SLCreateTopLeftSquareRoundedPath(
+                        NSRectToCGRect(destinationRect),
+                        radius,
+                        NO)
+                    : SLCreateFullyRoundedPath(
+                        NSRectToCGRect(destinationRect),
+                        radius);
+
+            if (!path) {
+                return NO;
+            }
+
+            CGContextSaveGState(context);
+            CGContextSetShouldAntialias(context, true);
+            CGContextSetAllowsAntialiasing(context, true);
+            CGContextSetFillColorWithColor(
+                context,
+                NSColor.blackColor.CGColor);
+            CGContextAddPath(context, path);
+            CGContextFillPath(context);
+            CGContextRestoreGState(context);
+
+            CGPathRelease(path);
+            return YES;
+        }];
+
+    if (!image) {
+        return nil;
+    }
+
+    image.capInsets =
+        NSEdgeInsetsMake(
+            radius,
+            radius,
+            radius,
+            radius);
+    image.resizingMode = NSImageResizingModeStretch;
+
+    /* Static cache owns these masks for the process lifetime. */
+    return image;
+}
+
+static NSImage *SLPopupCornerMaskImage(
+    BOOL squareTopLeft
+) {
+    if (squareTopLeft) {
+        if (!SLSquareTopLeftPopupCornerMaskImage) {
+            SLSquareTopLeftPopupCornerMaskImage =
+                SLBuildPopupCornerMaskImage(YES);
+        }
+        return SLSquareTopLeftPopupCornerMaskImage;
+    }
+
+    if (!SLRoundedPopupCornerMaskImage) {
+        SLRoundedPopupCornerMaskImage =
+            SLBuildPopupCornerMaskImage(NO);
+    }
+    return SLRoundedPopupCornerMaskImage;
+}
+
+static id SnowLeopardPopupCornerMask(
+    id object,
+    SEL selector
+) {
+    if (!object ||
+        !PopupWindowClass ||
+        ![object isKindOfClass:PopupWindowClass]) {
+        return OriginalPopupCornerMask
+            ? OriginalPopupCornerMask(object, selector)
+            : nil;
+    }
+
+    NSWindow *window = (NSWindow *)object;
+    NSImage *mask =
+        SLPopupCornerMaskImage(
+            SLPopupUsesSquareTopLeftCorner(window));
+
+    if (mask) {
+        return mask;
+    }
+
+    return OriginalPopupCornerMask
+        ? OriginalPopupCornerMask(object, selector)
+        : nil;
+}
+
+static BOOL SnowLeopardPopupCornerMaskShouldDefineShadow(
+    id object,
+    SEL selector
+) {
+    if (object &&
+        PopupWindowClass &&
+        [object isKindOfClass:PopupWindowClass]) {
+        return YES;
+    }
+
+    return OriginalPopupCornerMaskShouldDefineShadow
+        ? OriginalPopupCornerMaskShouldDefineShadow(object, selector)
+        : NO;
+}
+
+static BOOL SLPopupCanUseNativeShapedShadow(
+    NSWindow *window
+) {
+    return window &&
+        PopupWindowClass &&
+        [window isKindOfClass:PopupWindowClass] &&
+        SLPopupCornerMaskHookInstalled;
+}
+
+static void SLResolveWindowShadowSPI(void) {
+    if (SLWindowShadowSPIResolved) {
+        return;
+    }
+
+    SLWindowShadowSPIResolved = YES;
+
+    /*
+     * SkyLight currently exports the SLS-prefixed symbol. Older reverse-
+     * engineered interfaces document the same ABI under the CGS prefix.
+     * Resolve both names for compatibility without linking either directly.
+     */
+    void *symbol =
+        dlsym(RTLD_DEFAULT, "SLSWindowSetShadowProperties");
+
+    if (!symbol) {
+        symbol =
+            dlsym(RTLD_DEFAULT, "CGSWindowSetShadowProperties");
+    }
+
+    if (symbol) {
+        SLWindowSetShadowProperties =
+            (SLWindowSetShadowPropertiesFn)symbol;
+        SLWindowShadowSPIAvailable = YES;
+        SLLog(@"WindowServer shadow-properties SPI available");
+    } else {
+        SLLog(@"WindowServer shadow-properties SPI unavailable; using AppKit defaults");
+    }
+}
+
+static void SLTuneSnowLeopardWindowShadow(NSWindow *window) {
+    if (!SLPopupCanUseNativeShapedShadow(window) ||
+        window.windowNumber <= 0) {
+        return;
+    }
+
+    SLResolveWindowShadowSPI();
+
+    /*
+     * Only calibrate WindowServer's existing shadow. This deliberately
+     * does not invalidate the shadow here: this routine is also called from
+     * our -invalidateShadow hook, so doing so would recurse.
+     */
+    if (SLWindowShadowSPIAvailable &&
+        SLWindowSetShadowProperties) {
+        NSDictionary *properties = @{
+            @"com.apple.WindowShadowDensity":
+                @(SLPopupShadowDensity),
+            @"com.apple.WindowShadowRadius":
+                @(SLPopupShadowRadius),
+            @"com.apple.WindowShadowVerticalOffset":
+                @(SLPopupShadowVerticalOffset),
+            @"com.apple.WindowShadowRimDensity":
+                @(SLPopupShadowRimDensity)
+        };
+
+        CGError error =
+            SLWindowSetShadowProperties(
+                (uint32_t)window.windowNumber,
+                (__bridge CFDictionaryRef)properties);
+
+        if (error != kCGErrorSuccess) {
+            SLLog([NSString stringWithFormat:
+                @"WindowServer shadow-properties error=%d window=%ld",
+                (int)error,
+                (long)window.windowNumber]);
+        }
+    }
+}
+
+static void SLCommitSnowLeopardWindowShadow(NSWindow *window) {
+    if (!SLPopupCanUseNativeShapedShadow(window)) {
+        if (window && IsPopupWindow(window)) {
+            window.hasShadow = NO;
+        }
+        return;
+    }
+
+    /*
+     * Make AppKit create/rebuild the real shadow only after the popup has
+     * actually been ordered and therefore has a valid WindowServer window ID.
+     * The popup -invalidateShadow hook reapplies our exact parameters after
+     * AppKit performs every rebuild, so hover/layout updates cannot switch the
+     * shadow back to a different appearance.
+     */
+    if (!window.hasShadow) {
+        window.hasShadow = YES;
+    }
+
+    [window invalidateShadow];
+
+    /* Defensive fallback if the private popup class cannot be hooked. */
+    if (!SLPopupInvalidateShadowHookInstalled) {
+        SLTuneSnowLeopardWindowShadow(window);
+    }
+}
+
+static void SLRefreshPopupCompositorShape(
+    NSWindow *window
+) {
+    if (!SLPopupCanUseNativeShapedShadow(window)) {
+        if (window && IsPopupWindow(window)) {
+            window.hasShadow = NO;
+        }
+        return;
+    }
+
+    /*
+     * _cornerMaskChanged forwards the current _cornerMask to AppKit's
+     * WindowServer bridge. Run it after submenu classification so a submenu
+     * receives the three-rounded-corners mask with a square upper-left corner.
+     * Shadow calibration is intentionally separate: layout/hover may
+     * refresh this mask, but they no longer become the trigger that changes
+     * the visible shadow style.
+     */
+    SEL changedSEL =
+        NSSelectorFromString(@"_cornerMaskChanged");
+
+    if ([window respondsToSelector:changedSEL]) {
+        void (*changedFn)(id, SEL) =
+            (void (*)(id, SEL))[window
+                methodForSelector:changedSEL];
+
+        if (changedFn) {
+            changedFn(window, changedSEL);
+        }
+    }
+}
+
+static NSBezierPath *SLFullyRoundedBorderPath(
     NSRect bounds,
     CGFloat radius
 ) {
-    /*
-     * drawRect usa una vista volteada. La parte inferior
-     * visible se encuentra en NSMaxY(bounds).
-     */
-    CGFloat minX = NSMinX(bounds);
-    CGFloat maxX = NSMaxX(bounds);
-    CGFloat minY = NSMinY(bounds);
-    CGFloat maxY = NSMaxY(bounds);
-
-    CGFloat maximum =
+    CGFloat maximumRadius =
         MIN(
             NSWidth(bounds),
             NSHeight(bounds)
         ) * 0.5;
 
-    CGFloat resolved =
-        MAX(0.0, MIN(radius, maximum));
+    CGFloat resolvedRadius =
+        MAX(
+            0.0,
+            MIN(radius, maximumRadius)
+        );
 
-    const CGFloat kappa = 0.55228475;
-
-    NSBezierPath *path =
-        [NSBezierPath bezierPath];
-
-    [path moveToPoint:
-        NSMakePoint(minX, minY)];
-
-    [path lineToPoint:
-        NSMakePoint(maxX, minY)];
-
-    [path lineToPoint:
-        NSMakePoint(
-            maxX,
-            maxY - resolved)];
-
-    [path curveToPoint:
-        NSMakePoint(
-            maxX - resolved,
-            maxY)
-         controlPoint1:
-        NSMakePoint(
-            maxX,
-            maxY - resolved +
-                resolved * kappa)
-         controlPoint2:
-        NSMakePoint(
-            maxX - resolved +
-                resolved * kappa,
-            maxY)];
-
-    [path lineToPoint:
-        NSMakePoint(
-            minX + resolved,
-            maxY)];
-
-    [path curveToPoint:
-        NSMakePoint(
-            minX,
-            maxY - resolved)
-         controlPoint1:
-        NSMakePoint(
-            minX + resolved -
-                resolved * kappa,
-            maxY)
-         controlPoint2:
-        NSMakePoint(
-            minX,
-            maxY - resolved +
-                resolved * kappa)];
-
-    [path closePath];
-
-    return path;
+    return [NSBezierPath
+        bezierPathWithRoundedRect:bounds
+                     xRadius:resolvedRadius
+                     yRadius:resolvedRadius];
 }
 
 static void SLApplySinglePopupMask(
@@ -615,8 +833,8 @@ static void SLApplySinglePopupMask(
             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 
-    BOOL attachedToMenuBar =
-        SLWindowIsAttachedToMenuBar(
+    BOOL squareTopLeft =
+        SLPopupUsesSquareTopLeftCorner(
             root.window);
 
     [CATransaction begin];
@@ -627,26 +845,24 @@ static void SLApplySinglePopupMask(
 
     CGPathRef path = NULL;
 
-    if (attachedToMenuBar) {
+    if (squareTopLeft) {
         /*
-         * Menú principal:
-         * parte superior completamente recta.
+         * Menú principal o submenú: esquina superior izquierda recta.
          */
         path =
-            SLCreateBottomRoundedPath(
+            SLCreateTopLeftSquareRoundedPath(
                 layer.bounds,
-                SLPopupBottomRadius,
+                SLPopupCornerRadius,
                 layer.geometryFlipped);
     } else {
         /*
-         * Submenú:
-         * radio en las cuatro esquinas.
+         * Menú contextual o popup de control independiente:
+         * radio Snow Leopard en las cuatro esquinas.
          */
         path =
-            SLCreateSubmenuAttachedPath(
+            SLCreateFullyRoundedPath(
                 layer.bounds,
-                SLPopupBottomRadius,
-                layer.geometryFlipped);
+                SLPopupCornerRadius);
     }
 
     mask.path = path;
@@ -657,6 +873,83 @@ static void SLApplySinglePopupMask(
 
     layer.mask = mask;
     layer.masksToBounds = YES;
+
+    [CATransaction commit];
+}
+
+/*
+ * Single-window popup compositor
+ *
+ * AppKit can compute a rectangular native shadow even when the visible popup
+ * is rounded. This fixes the compositor silhouette itself through NSWindow's
+ * private corner-mask path.
+ * The system shadow can therefore be used again without auxiliary windows,
+ * overlay layers, timers, observers, or delayed cleanup.
+ */
+static NSView *SLPopupOutermostContainer(
+    NSWindow *window
+) {
+    if (!window || !IsPopupWindow(window)) {
+        return nil;
+    }
+
+    NSView *view = window.contentView;
+
+    if (!view) {
+        return nil;
+    }
+
+    while (view.superview &&
+           view.superview.window == window) {
+        view = view.superview;
+    }
+
+    return view;
+}
+
+static void SLPreparePopupOuterContainer(
+    NSWindow *window
+) {
+    if (!window || !IsPopupWindow(window)) {
+        return;
+    }
+
+    NSView *container =
+        SLPopupOutermostContainer(window);
+
+    if (!container ||
+        NSIsEmptyRect(container.bounds)) {
+        return;
+    }
+
+    window.opaque = NO;
+    window.backgroundColor = NSColor.clearColor;
+
+    container.wantsLayer = YES;
+
+    CALayer *layer = container.layer;
+
+    if (!layer) {
+        return;
+    }
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
+    layer.opaque = NO;
+    layer.backgroundColor =
+        NSColor.clearColor.CGColor;
+    layer.borderWidth = 0.0;
+    layer.borderColor = NULL;
+
+    /*
+     * Do not mask the outer container. The visible menu surface is clipped by
+     * the root/film masks, while -_cornerMask supplies the real compositor
+     * silhouette. AppKit can therefore draw its external shadow outside this
+     * transparent container without exposing rectangular corner artifacts.
+     */
+    layer.mask = nil;
+    layer.masksToBounds = NO;
 
     [CATransaction commit];
 }
@@ -713,9 +1006,30 @@ static void PreparePopupPalette(void) {
     }
 
     /*
-     * El root aplica el único recorte. La película simplemente
-     * rellena el menú; no crea una segunda curva.
+     * Dibujar la propia superficie del menú con la silueta final.
+     *
+     * Las revisiones anteriores rellenaban un rectángulo y confiaban en una
+     * máscara exterior para borrar las esquinas. En algunas configuraciones
+     * de AppKit el backing/material se compone fuera de ese recorte y deja
+     * visibles pequeños cuadrados claros. Aquí el fondo que nosotros
+     * poseemos nunca pinta esos píxeles: las esquinas nacen transparentes.
      */
+    BOOL squareTopLeft =
+        SLPopupUsesSquareTopLeftCorner(
+            self.window);
+
+    NSBezierPath *surface =
+        squareTopLeft
+            ? SLTopLeftSquareRoundedBorderPath(
+                bounds,
+                SLPopupCornerRadius)
+            : SLFullyRoundedBorderPath(
+                bounds,
+                SLPopupCornerRadius);
+
+    [NSGraphicsContext saveGraphicsState];
+    [surface addClip];
+
     CGContextSetFillColorWithColor(
         context,
         PopupBackgroundColour);
@@ -724,9 +1038,11 @@ static void PreparePopupPalette(void) {
         context,
         NSRectToCGRect(bounds));
 
+    [NSGraphicsContext restoreGraphicsState];
+
     /*
-     * Un solo borde, medio punto hacia dentro para que el
-     * antialiasing no quede cortado.
+     * El borde usa exactamente la misma geometría, medio punto hacia dentro
+     * para que el antialiasing quede contenido dentro de la superficie.
      */
     NSRect borderBounds =
         NSInsetRect(
@@ -734,21 +1050,17 @@ static void PreparePopupPalette(void) {
             0.5,
             0.5);
 
-    BOOL attachedToMenuBar =
-        SLWindowIsAttachedToMenuBar(
-            self.window);
-
     CGFloat borderRadius =
         MAX(
             0.0,
-            SLPopupBottomRadius - 0.5);
+            SLPopupCornerRadius - 0.5);
 
     NSBezierPath *border =
-        attachedToMenuBar
-            ? SLBottomRoundedBorderPath(
+        squareTopLeft
+            ? SLTopLeftSquareRoundedBorderPath(
                 borderBounds,
                 borderRadius)
-            : SLSubmenuAttachedBorderPath(
+            : SLFullyRoundedBorderPath(
                 borderBounds,
                 borderRadius);
 
@@ -871,14 +1183,11 @@ static void EnsureBackgroundFilm(NSView *root) {
         [root addSubview:film positioned:NSWindowBelow relativeTo:nil];
     }
     [film setNeedsDisplay:YES];
-    SLApplySinglePopupMask(root);
 
     /*
-     * SLPopupFilmOwnMaskFix
-     *
-     * El contorno curvo y el relleno deben compartir exactamente
-     * la misma geometría. La película sola no basta porque detrás
-     * permanece el material rectangular de NSVisualEffectView.
+     * Keep the legacy material layers transparent. The film supplies the
+     * classic Snow Leopard fill; the single outer window mask clips both the
+     * film and any remaining AppKit backing in one place.
      */
     root.wantsLayer = YES;
     film.wantsLayer = YES;
@@ -942,13 +1251,10 @@ static void EnsureBackgroundFilm(NSView *root) {
     [CATransaction commit];
 
     /*
-     * Aplicar la misma ruta asimétrica a ambos niveles:
-     *
-     * menú principal:
-     *   esquinas superiores rectas;
-     *
-     * submenú:
-     *   superior izquierda recta y las otras tres redondeadas.
+     * El recorte principal vive en la superficie real que dibuja el fondo.
+     * Así CABackdropLayer/materiales privados que cuelguen del root no pueden
+     * sobresalir en las esquinas. El contorno equivalente también se entrega
+     * al compositor mediante -_cornerMask para que la sombra siga esa forma.
      */
     SLApplySinglePopupMask(root);
     SLApplySinglePopupMask(film);
@@ -1170,7 +1476,7 @@ static void SLAlignPopupToMenuBarAnchor(
  *
  * Este valor afecta solamente el eje X de los submenús.
  */
-static const CGFloat SLSubmenuHorizontalOverlap = 0.0;
+static const CGFloat SLSubmenuHorizontalOverlap = 1.0;
 
 /*
  * El borde del menú padre mide un punto. El submenú
@@ -1415,6 +1721,12 @@ static NSView *SLFindPopupVisibleRoot(
     return nil;
 }
 
+/*
+ * There is deliberately no custom shadow layer. AppKit owns the external
+ * shadow after receiving the compositor corner mask from -_cornerMask;
+ * WindowServer SPI is used only to calibrate radius, density and offset.
+ */
+
 static NSRect SLPopupVisibleRectOnScreen(
     NSWindow *window
 ) {
@@ -1465,6 +1777,25 @@ static void SLAlignSubmenuHorizontally(
         return;
     }
 
+    objc_setAssociatedObject(
+        submenu,
+        &SLPopupIsSubmenuKey,
+        @YES,
+        OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    /*
+     * El root puede haberse creado antes de que AppKit revele la relación
+     * padre/submenú. Reaplicar ahora evita un frame con las cuatro esquinas
+     * redondeadas antes de que aparezca en pantalla.
+     */
+    NSView *submenuRoot =
+        SLFindPopupVisibleRoot(
+            submenu.contentView);
+
+    if (submenuRoot) {
+        EnsureBackgroundFilm(submenuRoot);
+    }
+
     NSRect parentVisible =
         SLPopupVisibleRectOnScreen(
             parent);
@@ -1485,8 +1816,8 @@ static void SLAlignSubmenuHorizontally(
          * El borde visible izquierdo del submenú debe coincidir
          * exactamente con el borde visible derecho del padre.
          *
-         * SLSubmenuHorizontalOverlap vale 0.0: no hay hueco ni
-         * superposición.
+         * SLSubmenuHorizontalOverlap vale 1.0: el submenú invade un punto
+         * el borde visible del padre, como en Snow Leopard.
          */
         CGFloat targetVisibleLeft =
             NSMaxX(parentVisible) +
@@ -1602,104 +1933,128 @@ static void SLScheduleSubmenuHorizontalAlignment(
 }
 
 /*
- * AppKit ordena las ventanas de menú con
- * orderWindow:relativeTo:. La corrección se aplica antes de
- * presentar la ventana y otra vez inmediatamente después, en el
- * mismo ciclo de ejecución.
+ * Popup presentation/shadow lifecycle hooks.
+ *
+ * Hook the popup class itself rather than NSWindow's inherited ordering path,
+ * because popup subclasses can override that selector. The shape is committed
+ * after AppKit's own order operation, then one real shadow rebuild is requested.
+ * We also
+ * hook invalidateShadow on the popup class so every AppKit-triggered rebuild
+ * is synchronously retuned to the exact same Snow Leopard parameters.
  */
-@interface NSWindow (SLSnowLeopardSubmenuPreOrder)
-
-- (void)sl_snowLeopard_orderWindow:
-    (NSWindowOrderingMode)place
-    relativeTo:(NSInteger)otherWindowNumber;
-
-@end
-
-@implementation NSWindow (SLSnowLeopardSubmenuPreOrder)
-
-- (void)sl_snowLeopard_orderWindow:
-    (NSWindowOrderingMode)place
-    relativeTo:(NSInteger)otherWindowNumber
-{
-    BOOL shouldAlign =
-        place != NSWindowOut &&
-        IsPopupWindow(self) &&
-        !SLPopupTouchesMenuBar(self);
-
-    if (shouldAlign) {
-        self.animationBehavior =
-            NSWindowAnimationBehaviorNone;
-
-        /*
-         * Corregir el frame antes de que la ventana aparezca.
-         */
-        SLAlignSubmenuHorizontally(self);
-    }
+static void SnowLeopardPopupInvalidateShadow(
+    id object,
+    SEL selector
+) {
+    NSWindow *window = (NSWindow *)object;
+    BOOL tune =
+        SLPopupCanUseNativeShapedShadow(window) &&
+        window.hasShadow;
 
     /*
-     * Tras el swizzle, esta llamada ejecuta la implementación
-     * original de NSWindow.
+     * Apply both before and after AppKit's rebuild. The pre-pass guarantees
+     * that WindowServer sees our parameters for the shadow being generated
+     * right now; the post-pass restores them if AppKit rewrites any property
+     * during its private invalidation path. No extra invalidation is issued.
      */
-    [self
-        sl_snowLeopard_orderWindow:place
-        relativeTo:otherWindowNumber];
+    if (tune) {
+        SLTuneSnowLeopardWindowShadow(window);
+    }
 
-    if (shouldAlign) {
-        /*
-         * AppKit puede alterar el frame durante orderWindow:.
-         * Esta segunda corrección sigue siendo síncrona.
-         */
-        SLAlignSubmenuHorizontally(self);
+    if (OriginalPopupInvalidateShadow) {
+        OriginalPopupInvalidateShadow(object, selector);
+    }
+
+    if (tune) {
+        SLTuneSnowLeopardWindowShadow(window);
     }
 }
 
-@end
+static void SnowLeopardPopupOrderWindow(
+    id object,
+    SEL selector,
+    NSWindowOrderingMode place,
+    NSInteger otherWindowNumber
+) {
+    NSWindow *window = (NSWindow *)object;
+    BOOL presenting = place != NSWindowOut;
 
-static void SLInstallSubmenuPreOrderHook(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-            Class windowClass =
-                NSWindow.class;
+    if (presenting &&
+        !SLPopupTouchesMenuBar(window)) {
+        /* Resolve/mark submenus and apply the classic 1 pt overlap. */
+        SLAlignSubmenuHorizontally(window);
+    }
 
-            Method originalMethod =
-                class_getInstanceMethod(
-                    windowClass,
-                    @selector(orderWindow:relativeTo:));
+    if (OriginalPopupOrderWindow) {
+        OriginalPopupOrderWindow(
+            object,
+            selector,
+            place,
+            otherWindowNumber);
+    }
 
-            Method replacementMethod =
-                class_getInstanceMethod(
-                    windowClass,
-                    @selector(
-                        sl_snowLeopard_orderWindow:
-                        relativeTo:));
+    if (!presenting) {
+        return;
+    }
 
-            if (!originalMethod ||
-                !replacementMethod) {
-                SLLog(
-                    @"submenu pre-order hook failed");
+    /* AppKit can adjust the frame during ordering; correct it once more. */
+    if (!SLPopupTouchesMenuBar(window)) {
+        SLAlignSubmenuHorizontally(window);
+    }
 
-                return;
-            }
+    SLPreparePopupOuterContainer(window);
+    SLRefreshPopupCompositorShape(window);
+    SLCommitSnowLeopardWindowShadow(window);
+}
 
-            method_exchangeImplementations(
-                originalMethod,
-                replacementMethod);
+static void SLInstallPopupPresentationHooks(void) {
+    if (!PopupWindowClass) {
+        return;
+    }
 
-            SLLog(
-                @"submenu pre-order hook installed");
-    });
+    IMP originalOrder = NULL;
+    SLPopupPresentationHookInstalled =
+        SLInstallOverrideHook(
+            PopupWindowClass,
+            @selector(orderWindow:relativeTo:),
+            NULL,
+            (IMP)SnowLeopardPopupOrderWindow,
+            &originalOrder);
+
+    if (SLPopupPresentationHookInstalled) {
+        OriginalPopupOrderWindow =
+            (OrderWindowFn)originalOrder;
+    }
+
+    IMP originalInvalidate = NULL;
+    SLPopupInvalidateShadowHookInstalled =
+        SLInstallOverrideHook(
+            PopupWindowClass,
+            @selector(invalidateShadow),
+            "v16@0:8",
+            (IMP)SnowLeopardPopupInvalidateShadow,
+            &originalInvalidate);
+
+    if (SLPopupInvalidateShadowHookInstalled) {
+        OriginalPopupInvalidateShadow =
+            (InvalidateShadowFn)originalInvalidate;
+    }
+
+    SLLog([NSString stringWithFormat:
+        @"popup presentation hook=%d invalidateShadowHook=%d",
+        SLPopupPresentationHookInstalled,
+        SLPopupInvalidateShadowHookInstalled]);
 }
 
 static void StylePopupWindow(NSWindow *window) {
     if (!IsPopupWindow(window)) return;
 
     /*
-     * La sombra nativa dibuja un contorno redondeado en las
-     * cuatro esquinas. Eso producía un segundo radio detrás de
-     * la esquina superior izquierda cuadrada.
+     * The window stays non-opaque and transparent around the classic menu
+     * surface. AppKit/WindowServer receives the same silhouette through
+     * -_cornerMask, allowing the native external shadow to follow the real
+     * rounded outline instead of a rectangular backing box.
      */
-    window.hasShadow = NO;
-    [window invalidateShadow];
 
     CALayer *contentLayer =
         window.contentView.layer;
@@ -1718,8 +2073,9 @@ static void StylePopupWindow(NSWindow *window) {
     }
 
     /*
-     * La sombra de NSWindow conserva una silueta rectangular y
-     * era la segunda esquina que aparecía detrás de la curva.
+     * Quitamos los radios privados modernos. El contorno visible lo controlan
+     * las máscaras del fondo y la silueta de NSWindow la define _cornerMask;
+     * de este modo no se añade el radio uniforme moderno de Sequoia.
      */
     window.opaque = NO;
     window.backgroundColor = NSColor.clearColor;
@@ -1737,8 +2093,9 @@ static void StylePopupWindow(NSWindow *window) {
     SLScheduleSubmenuHorizontalAlignment(window);
 
     /*
-     * SquareVisualEffectView elimina layer.mask. Esta llamada
-     * debe ser la última operación geométrica de la función.
+     * SquareVisualEffectView limpia las capas de material moderno. El root y
+     * nuestra película llevan la silueta visible; el contenedor exterior queda
+     * transparente y WindowServer recibe la misma silueta mediante _cornerMask.
      */
     NSView *finalRoot =
         SLFindPopupVisibleRoot(
@@ -1747,6 +2104,14 @@ static void StylePopupWindow(NSWindow *window) {
     if (finalRoot) {
         EnsureBackgroundFilm(finalRoot);
     }
+
+    /*
+     * Keep AppKit's outer container transparent, then push the same corner
+     * geometry into the compositor. Shadow style/lifecycle calibration is
+     * owned by the popup presentation + invalidateShadow hooks, not layout.
+     */
+    SLPreparePopupOuterContainer(window);
+    SLRefreshPopupCompositorShape(window);
 
 }
 
@@ -1780,6 +2145,52 @@ static void SnowLeopardManagerRadius(id object, SEL selector,
                                      CGFloat radius) {
     OriginalManagerRadius(
         object, selector, IsPopupWindow(object) ? 0.0 : radius);
+}
+
+
+static void SLInstallPopupCompositorMaskHooks(void) {
+    if (!PopupWindowClass) {
+        return;
+    }
+
+    IMP originalMask = NULL;
+    SLPopupCornerMaskHookInstalled =
+        SLInstallOverrideHook(
+            PopupWindowClass,
+            NSSelectorFromString(@"_cornerMask"),
+            "@16@0:8",
+            (IMP)SnowLeopardPopupCornerMask,
+            &originalMask);
+
+    if (SLPopupCornerMaskHookInstalled) {
+        OriginalPopupCornerMask =
+            (ObjectFn)originalMask;
+    }
+
+    /*
+     * Best-effort on Sequoia. AppKit commonly derives this from the mask, but
+     * forcing YES for menu popups makes the shadow relationship explicit. If
+     * Apple changes this private selector, the core _cornerMask hook still
+     * remains usable and the optional hook simply stays off.
+     */
+    IMP originalDefinesShadow = NULL;
+    SLPopupCornerMaskShadowHookInstalled =
+        SLInstallOverrideHook(
+            PopupWindowClass,
+            NSSelectorFromString(@"_cornerMaskShouldDefineShadow"),
+            "B16@0:8",
+            (IMP)SnowLeopardPopupCornerMaskShouldDefineShadow,
+            &originalDefinesShadow);
+
+    if (SLPopupCornerMaskShadowHookInstalled) {
+        OriginalPopupCornerMaskShouldDefineShadow =
+            (BoolFn)originalDefinesShadow;
+    }
+
+    SLLog([NSString stringWithFormat:
+        @"popup compositor mask hook=%d shadowMaskHook=%d",
+        SLPopupCornerMaskHookInstalled,
+        SLPopupCornerMaskShadowHookInstalled]);
 }
 
 typedef struct {
@@ -1856,6 +2267,8 @@ static void InstallPopupHooks(void) {
     }
 
     PreparePopupPalette();
+    SLInstallPopupCompositorMaskHooks();
+    SLInstallPopupPresentationHooks();
     CommitPopupHooks();
     Installed = YES;
     SLLog([NSString stringWithFormat:
@@ -1868,7 +2281,6 @@ static void SnowLeopardMenuPopupLoad(void) {
     @autoreleasepool {
         if (!SLRuntimeIsMacOSSequoia() ||
             !SLIsEligibleRegularApplicationProcess()) return;
-        SLInstallSubmenuPreOrderHook();
         SLInstallPopupAnchorObserver();
         dispatch_after(
             dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC),

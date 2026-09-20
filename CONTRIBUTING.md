@@ -2,24 +2,36 @@
 
 ## English
 
-Thanks for your interest in Snow Leopard Menu Bar Tweak.
+Contributions are welcome under the project's MIT License.
 
-Contributions are made under the project's **MIT License**. By submitting a contribution, you agree that it may be distributed under the terms in `LICENSE`.
+Keep changes scoped to one runtime responsibility. Structural refactors should be separate from behavior changes, and private AppKit/WindowServer hooks should include process guards, method-encoding checks and cleanup/fallback behavior when practical.
 
-For code changes, keep structural refactors separate from behavior changes, run `./scripts/check-project.sh` and the relevant regression suite (`make test`, plus `make test-sidebar` for sidebar-hook changes), and describe the exact macOS build and hardware used for runtime testing. Changes involving private AppKit hooks should include the observed method encoding/class assumptions and a fallback or guard when practical.
+Before opening a pull request:
 
-Do not commit compiled binaries, local backups, machine-specific paths, or proprietary assets that cannot be redistributed.
+```bash
+make release-check
+```
 
-When changing documentation, keep the English and Spanish versions synchronized under `docs/en/` and `docs/es/`.
+When runtime code changes, also build on macOS Sequoia 15.x and manually test the affected surfaces. Sidebar-hook changes should additionally run `make test-sidebar`.
+
+Do not commit compiled binaries, generated headers, local backups, machine-specific paths, logs containing private data, or assets/code you are not authorized to redistribute. Reference projects may be used to understand public behavior or architecture, but do not copy source unless its license explicitly permits the intended use and attribution requirements are satisfied.
+
+Keep English and Spanish documentation synchronized under `docs/en/` and `docs/es/`.
 
 ## Español
 
-Gracias por tu interés en Snow Leopard Menu Bar Tweak.
+Las contribuciones son bienvenidas bajo la licencia MIT del proyecto.
 
-Las contribuciones se realizan bajo la **Licencia MIT** del proyecto. Al enviar una contribución, aceptas que pueda distribuirse bajo los términos indicados en `LICENSE`.
+Mantén cada cambio dentro de una sola responsabilidad de runtime. Las refactorizaciones estructurales deben separarse de los cambios de comportamiento, y los hooks privados de AppKit/WindowServer deberían incluir guards de proceso, validación de encodings y limpieza/fallback cuando sea práctico.
 
-Para cambios de código, mantén las refactorizaciones estructurales separadas de los cambios de comportamiento, ejecuta `./scripts/check-project.sh` y la suite de regresión correspondiente (`make test`, además de `make test-sidebar` para cambios de hooks de sidebar), e indica la versión/build exacta de macOS y el hardware usado para las pruebas en runtime. Los cambios que afecten hooks privados de AppKit deberían incluir los encodings/clases observados y, cuando sea práctico, un fallback o guard.
+Antes de abrir un pull request:
 
-No incluyas binarios compilados, respaldos locales, rutas específicas de una máquina ni recursos propietarios que no puedan redistribuirse.
+```bash
+make release-check
+```
 
-Cuando modifiques documentación, mantén sincronizadas las versiones en inglés y español dentro de `docs/en/` y `docs/es/`.
+Cuando cambie código de runtime, compila también en macOS Sequoia 15.x y prueba manualmente las superficies afectadas. Los cambios de sidebar deberían ejecutar además `make test-sidebar`.
+
+No incluyas binarios compilados, headers generados, backups locales, rutas específicas de una máquina, logs con datos privados ni assets/código que no tengas autorización para redistribuir. Los proyectos de referencia pueden usarse para comprender comportamiento o arquitectura, pero no copies source salvo que su licencia permita el uso previsto y se cumplan sus requisitos de atribución.
+
+Mantén sincronizada la documentación en inglés y español dentro de `docs/en/` y `docs/es/`.

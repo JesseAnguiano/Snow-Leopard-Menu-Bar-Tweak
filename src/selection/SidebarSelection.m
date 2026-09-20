@@ -9,17 +9,19 @@
 #import "Runtime.h"
 #import "SelectionRenderer.h"
 
-const char SLSnowLeopardSidebarSelectionCapabilities[] =
+const char SLSnowLeopardSidebarSelectionCapabilities[] SL_CAPABILITY_EXPORT =
     "snowLeopardSidebarSelection=modular-v2 "
     "sidebarStrategy=native-first-with-row-fallback "
     "finderDeselection=post-original "
-    "appStoreVibrancy=selected-only";
+    "appStoreVibrancy=selected-only "
+    "contentColours=render-authoritative-black-white-v3";
 
 // Sidebar/source-list selection. AppKit's native selection material is preferred;
 // a row-local film is used only when the private material cannot be styled.
 
 typedef void (*VoidFn)(id, SEL);
 typedef void (*SetBoolFn)(id, SEL, BOOL);
+typedef void (*ViewWillDrawFn)(id, SEL);
 
 static VoidFn OriginalNativeSidebarUpdateMaterialLayer = NULL;
 static NSMutableDictionary<NSString *, id> *NativeSidebarGradientImageCache = nil;
@@ -39,12 +41,16 @@ static char NativeSidebarAppStoreOriginalVibrancyKey;
 static char NativeSidebarFallbackFilmKey;
 static char NativeSidebarEffectOriginalHiddenKey;
 static char NativeSidebarOriginalSetSelectedIMPKey;
+static char NativeSidebarOriginalViewWillDrawIMPKey;
 static __thread NSUInteger NativeSidebarMaterialHookDepth = 0;
 static __thread NSUInteger NativeSidebarSetSelectedHookDepth = 0;
 static __thread Class NativeSidebarCurrentSetSelectedHookClass = Nil;
+static __thread NSUInteger NativeSidebarViewWillDrawHookDepth = 0;
+static __thread Class NativeSidebarCurrentViewWillDrawHookClass = Nil;
 
 @interface SLBlueSidebarFallbackView : NSView
 @end
+
 
 @implementation SLBlueSidebarFallbackView
 
@@ -95,13 +101,18 @@ static BOOL NativeSidebarNameSuggestsSidebar(NSView *view) {
     return NO;
 }
 
+static BOOL NativeSidebarIsTable(NSTableView *table) {
+    if (!table) return NO;
+    if (table.style == NSTableViewStyleSourceList) return YES;
+    if (table.selectionHighlightStyle == (NSTableViewSelectionHighlightStyle)1) return YES;
+    return NativeSidebarNameSuggestsSidebar(table);
+}
+
 static BOOL NativeSidebarIsRow(NSTableRowView *row) {
     if (!row) return NO;
     NSTableView *table = NativeSidebarTableForRow(row);
     if (!table) return NO;
-    if (table.style == NSTableViewStyleSourceList) return YES;
-    if (table.selectionHighlightStyle == (NSTableViewSelectionHighlightStyle)1) return YES;
-    return NativeSidebarNameSuggestsSidebar(table) || NativeSidebarNameSuggestsSidebar(row);
+    return NativeSidebarIsTable(table) || NativeSidebarNameSuggestsSidebar(row);
 }
 
 static BOOL NativeSidebarEffectCoversRow(NSVisualEffectView *effect, NSTableRowView *row) {
@@ -278,7 +289,7 @@ static void NativeSidebarSetBackgroundStyle(id object, NSInteger style) {
 }
 
 static void NativeSidebarSetContentTint(id object, NSColor *color) {
-    if (object && color && [object respondsToSelector:NativeSidebarSetContentTintSelector]) {
+    if (object && [object respondsToSelector:NativeSidebarSetContentTintSelector]) {
         ((void (*)(id, SEL, id))objc_msgSend)(object, NativeSidebarSetContentTintSelector, color);
     }
 }
@@ -327,6 +338,84 @@ static void NativeSidebarApplyAppStoreVibrancy(NSView *view, BOOL selected) {
     }
 }
 
+
+static BOOL NativeSidebarColorsEqual(NSColor *a, NSColor *b) {
+    if (a == b) return YES;
+    if (!a || !b) return NO;
+    NSColor *aa = [a colorUsingColorSpace:NSColorSpace.deviceRGBColorSpace];
+    NSColor *bb = [b colorUsingColorSpace:NSColorSpace.deviceRGBColorSpace];
+    if (!aa || !bb) return [a isEqual:b];
+    const CGFloat epsilon = 0.002;
+    return fabs(aa.redComponent - bb.redComponent) < epsilon &&
+        fabs(aa.greenComponent - bb.greenComponent) < epsilon &&
+        fabs(aa.blueComponent - bb.blueComponent) < epsilon &&
+        fabs(aa.alphaComponent - bb.alphaComponent) < epsilon;
+}
+
+static void NativeSidebarForceTextFieldColor(NSTextField *field, NSColor *color) {
+    if (!field || !color) return;
+    if (!NativeSidebarColorsEqual(field.textColor, color)) {
+        field.textColor = color;
+    }
+
+    /*
+     * Some Music/Finder source-list labels use an attributed string carrying
+     * its own foreground colour. textColor alone cannot override that and the
+     * recycled row can therefore stay white after it is no longer selected.
+     * Rewrite only an explicitly-present foreground attribute; plain strings
+     * continue to use NSTextField.textColor.
+     */
+    NSAttributedString *value = field.attributedStringValue;
+    if (value.length == 0) return;
+    __block BOOL hasExplicitForeground = NO;
+    __block BOOL needsRewrite = NO;
+    [value enumerateAttribute:NSForegroundColorAttributeName
+        inRange:NSMakeRange(0, value.length)
+        options:0
+        usingBlock:^(id attribute, NSRange range, BOOL *stop) {
+            (void)range;
+            (void)stop;
+            if (![attribute isKindOfClass:NSColor.class]) return;
+            hasExplicitForeground = YES;
+            if (!NativeSidebarColorsEqual((NSColor *)attribute, color)) {
+                needsRewrite = YES;
+            }
+        }];
+    if (!hasExplicitForeground || !needsRewrite) return;
+
+    NSMutableAttributedString *mutable = [value mutableCopy];
+    [mutable addAttribute:NSForegroundColorAttributeName
+        value:color
+        range:NSMakeRange(0, mutable.length)];
+    field.attributedStringValue = mutable;
+}
+
+static void NativeSidebarEnforceTextPolicyRecursive(NSView *view, BOOL selected) {
+    if (!view) return;
+    NSColor *color = selected ? NSColor.whiteColor : NSColor.blackColor;
+    if ([view isKindOfClass:NSTextField.class]) {
+        NativeSidebarForceTextFieldColor((NSTextField *)view, color);
+    }
+    if (view.layer) {
+        NativeSidebarTintTextLayers(view.layer, color);
+    }
+    for (NSView *subview in view.subviews) {
+        NativeSidebarEnforceTextPolicyRecursive(subview, selected);
+    }
+}
+
+static void NativeSidebarEnforceVisibleRowText(NSTableView *table) {
+    if (!NativeSidebarIsTable(table) || table.numberOfRows <= 0) return;
+    NSRange visible = [table rowsInRect:table.visibleRect];
+    if (visible.location == NSNotFound || visible.length == 0) return;
+    NSUInteger upper = MIN(NSMaxRange(visible), (NSUInteger)table.numberOfRows);
+    for (NSUInteger index = visible.location; index < upper; index++) {
+        NSTableRowView *row = [table rowViewAtRow:(NSInteger)index makeIfNecessary:NO];
+        if (!row || !NativeSidebarIsRow(row)) continue;
+        NativeSidebarEnforceTextPolicyRecursive(row, row.isSelected);
+    }
+}
+
 static void NativeSidebarApplyContentRecursive(NSView *view, BOOL selected, NSColor *color, NSInteger backgroundStyle) {
     if (!view) return;
     NativeSidebarSetBackgroundStyle(view, backgroundStyle);
@@ -334,7 +423,7 @@ static void NativeSidebarApplyContentRecursive(NSView *view, BOOL selected, NSCo
     BOOL touched = NO;
     if ([view isKindOfClass:NSTextField.class]) {
         NSTextField *field = (NSTextField *)view;
-        field.textColor = color;
+        NativeSidebarForceTextFieldColor(field, color);
         field.alphaValue = 1.0;
         touched = YES;
     } else if ([view isKindOfClass:NSImageView.class]) {
@@ -360,10 +449,23 @@ static void NativeSidebarApplyContentRecursive(NSView *view, BOOL selected, NSCo
 
 static void NativeSidebarApplyContentToView(NSView *view, BOOL selected) {
     if (!view) return;
+
+    /*
+     * Deterministic Snow Leopard rule:
+     *   - normal/selectable sidebar text is always black
+     *   - the currently selected row is always white
+     *
+     * Do not snapshot/restore AppKit's transient colours. Source-list rows are
+     * aggressively recycled on modern macOS, so restoring an old snapshot can
+     * reintroduce white/grey text into a row that is no longer selected.
+     */
     NSColor *color = selected ? NSColor.whiteColor : NSColor.blackColor;
-    NativeSidebarApplyContentRecursive(view, selected, color, selected ? 1 : 0);
+    NSInteger backgroundStyle = selected ? 1 : 0;
+    NativeSidebarApplyContentRecursive(view, selected, color, backgroundStyle);
     if (view.layer) NativeSidebarTintTextLayers(view.layer, color);
+
     [view setNeedsDisplay:YES];
+    if (view.layer) [view.layer setNeedsDisplay];
 }
 
 static void NativeSidebarSetEffectSuppressed(NSVisualEffectView *effect, BOOL suppressed) {
@@ -475,19 +577,39 @@ static void NativeSidebarSetSelected(id object, SEL selector, BOOL selected) {
     if (!original || !ownerClass) return;
 
     BOOL outermost = NativeSidebarSetSelectedHookDepth == 0;
+    NSTableRowView *row = [object isKindOfClass:NSTableRowView.class]
+        ? (NSTableRowView *)object
+        : nil;
+
     Class previousHookClass = NativeSidebarCurrentSetSelectedHookClass;
     NativeSidebarCurrentSetSelectedHookClass = ownerClass;
     NativeSidebarSetSelectedHookDepth++;
     original(object, selector, selected);
 
-    if (outermost) {
-        NSTableRowView *row = [object isKindOfClass:NSTableRowView.class] ? (NSTableRowView *)object : nil;
-        if (row && NativeSidebarIsRow(row)) {
+    if (outermost && row && NativeSidebarIsRow(row)) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        NativeSidebarReconcileRow(row);
+        NSTableView *table = NativeSidebarTableForRow(row);
+        NativeSidebarEnforceVisibleRowText(table);
+        [CATransaction commit];
+
+        /*
+         * Some private source-list cells update their backgroundStyle/text on
+         * the remainder of the same AppKit turn. Reconcile once more on the
+         * next main-loop turn using the row's CURRENT selected state. This is
+         * not a timed retry and cannot restore stale colours.
+         */
+        __weak NSTableRowView *weakRow = row;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSTableRowView *strongRow = weakRow;
+            if (!strongRow || !NativeSidebarIsRow(strongRow)) return;
             [CATransaction begin];
             [CATransaction setDisableActions:YES];
-            NativeSidebarReconcileRow(row);
+            NativeSidebarReconcileRow(strongRow);
+            NativeSidebarEnforceVisibleRowText(NativeSidebarTableForRow(strongRow));
             [CATransaction commit];
-        }
+        });
     }
 
     NativeSidebarSetSelectedHookDepth--;
@@ -512,9 +634,84 @@ static void NativeSidebarUpdateMaterialLayer(id object, SEL selector) {
         NativeSidebarSetEffectSuppressed(effect, !nativeApplied);
         NativeSidebarSetFallbackVisible(row, !nativeApplied);
         NativeSidebarApplyContentToView(row, YES);
+        NativeSidebarEnforceVisibleRowText(NativeSidebarTableForRow(row));
         [CATransaction commit];
     }
     NativeSidebarMaterialHookDepth--;
+}
+
+static ViewWillDrawFn NativeSidebarOriginalViewWillDrawForObject(id object,
+    Class afterClass, Class *ownerClass) {
+    if (ownerClass) *ownerClass = Nil;
+    if (!object) return NULL;
+    Class cls = afterClass ? class_getSuperclass(afterClass) : object_getClass(object);
+    for (; cls; cls = class_getSuperclass(cls)) {
+        NSValue *value = objc_getAssociatedObject((id)cls, &NativeSidebarOriginalViewWillDrawIMPKey);
+        if (value) {
+            if (ownerClass) *ownerClass = cls;
+            return (ViewWillDrawFn)value.pointerValue;
+        }
+        if (cls == NSTableView.class) break;
+    }
+    return NULL;
+}
+
+static void NativeSidebarTableViewWillDraw(id object, SEL selector) {
+    Class ownerClass = Nil;
+    Class afterClass = NativeSidebarViewWillDrawHookDepth > 0
+        ? NativeSidebarCurrentViewWillDrawHookClass
+        : Nil;
+    ViewWillDrawFn original = NativeSidebarOriginalViewWillDrawForObject(
+        object, afterClass, &ownerClass);
+    if (!original || !ownerClass) return;
+
+    BOOL outermost = NativeSidebarViewWillDrawHookDepth == 0;
+    Class previousHookClass = NativeSidebarCurrentViewWillDrawHookClass;
+    NativeSidebarCurrentViewWillDrawHookClass = ownerClass;
+    NativeSidebarViewWillDrawHookDepth++;
+    original(object, selector);
+
+    if (outermost && [object isKindOfClass:NSTableView.class]) {
+        NativeSidebarEnforceVisibleRowText((NSTableView *)object);
+    }
+
+    NativeSidebarViewWillDrawHookDepth--;
+    NativeSidebarCurrentViewWillDrawHookClass = previousHookClass;
+}
+
+static BOOL NativeSidebarClassIsTableSubclass(Class cls) {
+    for (Class candidate = cls; candidate; candidate = class_getSuperclass(candidate)) {
+        if (candidate == NSTableView.class) return YES;
+    }
+    return NO;
+}
+
+static BOOL NativeSidebarInstallViewWillDrawHookForClass(Class cls) {
+    if (!cls || !NativeSidebarClassIsTableSubclass(cls)) return NO;
+    SEL selector = @selector(viewWillDraw);
+    Method own = SLOwnInstanceMethod(cls, selector);
+    if (!own) {
+        /* Subclasses without an override inherit the NSTableView hook. */
+        if (cls != NSTableView.class) return NO;
+        Method effective = class_getInstanceMethod(cls, selector);
+        if (!effective) return NO;
+        IMP original = method_getImplementation(effective);
+        const char *types = method_getTypeEncoding(effective);
+        if (!original || !types) return NO;
+        objc_setAssociatedObject((id)cls, &NativeSidebarOriginalViewWillDrawIMPKey,
+            [NSValue valueWithPointer:original], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return class_addMethod(cls, selector, (IMP)NativeSidebarTableViewWillDraw, types);
+    }
+
+    IMP current = method_getImplementation(own);
+    if (!current) return NO;
+    if (current == (IMP)NativeSidebarTableViewWillDraw) {
+        return objc_getAssociatedObject((id)cls, &NativeSidebarOriginalViewWillDrawIMPKey) != nil;
+    }
+    objc_setAssociatedObject((id)cls, &NativeSidebarOriginalViewWillDrawIMPKey,
+        [NSValue valueWithPointer:current], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    method_setImplementation(own, (IMP)NativeSidebarTableViewWillDraw);
+    return YES;
 }
 
 static BOOL NativeSidebarMethodIsVoidNoArgs(Method method) {
@@ -555,18 +752,36 @@ static BOOL NativeSidebarInstallSetSelectedHookForClass(Class cls) {
     return YES;
 }
 
-static NSUInteger NativeSidebarInstallSetSelectedHooksForLoadedClasses(void) {
+typedef struct {
+    NSUInteger rowHooks;
+    NSUInteger drawHooks;
+} NativeSidebarHookCounts;
+
+static NativeSidebarHookCounts NativeSidebarInstallHooksForLoadedClasses(void) {
+    NativeSidebarHookCounts result = {0, 0};
+    if (NativeSidebarInstallViewWillDrawHookForClass(NSTableView.class)) {
+        result.drawHooks++;
+    }
+
     int count = objc_getClassList(NULL, 0);
-    if (count <= 0) return 0;
-    __unsafe_unretained Class *classes = (__unsafe_unretained Class *)calloc((size_t)count, sizeof(Class));
-    if (!classes) return 0;
+    if (count <= 0) return result;
+    __unsafe_unretained Class *classes =
+        (__unsafe_unretained Class *)calloc((size_t)count, sizeof(Class));
+    if (!classes) return result;
+
     count = objc_getClassList(classes, count);
-    NSUInteger installedCount = 0;
     for (int index = 0; index < count; index++) {
-        if (NativeSidebarInstallSetSelectedHookForClass(classes[index])) installedCount++;
+        Class cls = classes[index];
+        if (NativeSidebarInstallSetSelectedHookForClass(cls)) {
+            result.rowHooks++;
+        }
+        if (cls != NSTableView.class &&
+            NativeSidebarInstallViewWillDrawHookForClass(cls)) {
+            result.drawHooks++;
+        }
     }
     free(classes);
-    return installedCount;
+    return result;
 }
 
 static BOOL InstallNativeSidebarSelectionHook(void) {
@@ -600,12 +815,14 @@ static BOOL InstallNativeSidebarSelectionHook(void) {
         }
     }
 
-    NSUInteger rowHooks = NativeSidebarInstallSetSelectedHooksForLoadedClasses();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 750 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-        NativeSidebarInstallSetSelectedHooksForLoadedClasses();
-    });
+    NativeSidebarHookCounts hooks = NativeSidebarInstallHooksForLoadedClasses();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 750 * NSEC_PER_MSEC),
+        dispatch_get_main_queue(), ^{
+            NativeSidebarInstallHooksForLoadedClasses();
+        });
 
-    return NativeSidebarMaterialHookInstalled || rowHooks > 0;
+    return NativeSidebarMaterialHookInstalled ||
+        hooks.rowHooks > 0 || hooks.drawHooks > 0;
 }
 
 // ============================================================

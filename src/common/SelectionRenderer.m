@@ -33,22 +33,21 @@ static void SLPrepareSelectionPalette(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-        CGColorRef colours[35];
+        CGFloat components[35 * 4];
         for (NSUInteger index = 0; index < 35; index++) {
-            colours[index] = SLCreateSRGBColor(
-                SLSelectionRGB[index][0] / 255.0,
-                SLSelectionRGB[index][1] / 255.0,
-                SLSelectionRGB[index][2] / 255.0, 1.0);
+            NSUInteger base = index * 4;
+            components[base + 0] = SLSelectionRGB[index][0] / 255.0;
+            components[base + 1] = SLSelectionRGB[index][1] / 255.0;
+            components[base + 2] = SLSelectionRGB[index][2] / 255.0;
+            components[base + 3] = 1.0;
         }
-        CFArrayRef array = CFArrayCreate(kCFAllocatorDefault,
-            (const void **)colours, 35, &kCFTypeArrayCallBacks);
-        SLSelectionGradient = CGGradientCreateWithColors(
-            space, array, SLSelectionLocations);
-        CFRelease(array);
+        SLSelectionGradient = CGGradientCreateWithColorComponents(
+            space, components, SLSelectionLocations, 35);
         CGColorSpaceRelease(space);
-        for (NSUInteger index = 0; index < 35; index++) CGColorRelease(colours[index]);
-        SLSelectionTopRule = SLCreateSRGBColor(105.0/255.0, 134.0/255.0, 247.0/255.0, 1.0);
-        SLSelectionBottomRule = SLCreateSRGBColor(5.0/255.0, 47.0/255.0, 209.0/255.0, 1.0);
+        SLSelectionTopRule = SLCreateSRGBColor(
+            105.0/255.0, 134.0/255.0, 247.0/255.0, 1.0);
+        SLSelectionBottomRule = SLCreateSRGBColor(
+            5.0/255.0, 47.0/255.0, 209.0/255.0, 1.0);
     });
 }
 

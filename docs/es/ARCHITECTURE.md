@@ -2,97 +2,67 @@
 
 > [English version](../en/ARCHITECTURE.md)
 
-El proyecto distribuye intencionalmente **dos dylibs inyectadas** y un helper de wallpaper. La separación se basa en responsabilidad de runtime y alcance de fallos, no en límites históricos de archivos.
+El proyecto distribuye **dos dylibs inyectadas** y un helper de wallpaper. La separación es intencional: cada componente posee una superficie de runtime y un alcance de procesos distinto.
 
 ## Componentes de runtime
 
 ### `libSnowLeopardMenuBarUnified.dylib`
 
-Es responsable de las superficies que pertenecen a la propia barra de menús:
+Controla la estructura de la barra de menús y popups:
 
-- material de barra basado en wallpaper y sombra inferior;
-- geometría/arte del menú Apple y selección de menú superior;
+- material de la barra adaptado al wallpaper y sombra inferior;
+- geometría/artwork del menú Apple y selección de la barra superior;
 - fondo, máscara, esquinas y posición de menús popup;
-- status items de Apple/sistema en Control Center, SystemUIServer y Spotlight;
-- estilo de status items externos/de terceros;
+- apariencia de status items del sistema y externos;
 - iconos de estado de reemplazo embebidos;
-- notificación entre procesos para selección de status items.
+- coordinación de selección de status items.
 
 Se compila desde `src/common/`, `src/menubar/`, `src/menus/` y `src/status/`.
 
 ### `libSnowLeopardBlueSelection.dylib`
 
-Es responsable del estado de selección fuera de la superficie de menú superior/status items:
+Controla la selección fuera de la barra superior:
 
 - selección de menús popup/contextuales/Dock;
-- selección de source lists/sidebars de Finder, App Store, Música y Ajustes del Sistema;
-- sincronización de deselección de Finder;
-- compatibilidad de vibrancy del texto seleccionado en App Store.
+- estado del texto e indicador del padre de un submenu;
+- selección de source lists/sidebars en apps compatibles;
+- rutas de compatibilidad para Finder/App Store.
 
 Se compila desde `src/common/` y `src/selection/`.
 
-Mantenerla separada permite usar otro filtro de procesos de Ammonia y limita el alcance de fallos de hooks privados de AppKit.
+Mantener BlueSelection separado limita el alcance de procesos y el impacto de sus hooks privados de AppKit.
 
 ### `SnowLeopardWallpaperSource.app`
 
-Helper en segundo plano que lee el wallpaper actual y publica el pequeño payload de la parte superior de la pantalla que necesitan los procesos inyectados. Así cada proceso no tiene que decodificar el wallpaper completo por separado.
+Lee el wallpaper activo y publica únicamente el pequeño payload de la franja superior que necesitan los procesos inyectados. Así se evita decodificar el wallpaper completo repetidamente en cada app.
 
-## Responsabilidad del source
+## Responsabilidades del source
 
-| Superficie | Dueño | Source |
+| Responsabilidad | Source | Propietario |
 |---|---|---|
-| Helpers de runtime/ABI, procesos y log de diagnóstico | Compartido | `src/common/Runtime.m` |
-| Renderer azul exacto de 35 stops | Compartido | `src/common/SelectionRenderer.m` |
-| Material de barra, item Apple, selección superior | Unified | `src/menubar/MenuBar.m` |
-| Fondo/máscara/posición de popup | Unified | `src/menus/MenuPopup.m` |
-| Control Center/SystemUIServer/Spotlight | Unified | `src/status/SystemStatusItems.m` |
-| Status items externos/de terceros | Unified | `src/status/ExternalStatusItems.m` |
-| Iconos de estado de reemplazo | Unified | `src/status/StatusIcons.m` |
-| Notificación de selección de status items | Unified | `src/status/StatusSelectionIPC.m` |
-| Selección popup/contextual/Dock | BlueSelection | `src/selection/MenuSelection.m` |
-| Selección de sidebar/source list | BlueSelection | `src/selection/SidebarSelection.m` |
-| Helper de payload de wallpaper | Helper app | `src/wallpaper/WallpaperSource.m` |
+| Helpers de ABI/runtime/proceso y logging | `src/common/Runtime.m` | Compartido |
+| Renderer de selección azul clásica | `src/common/SelectionRenderer.m` | Compartido |
+| Material de menubar y comportamiento del menú superior | `src/menubar/MenuBar.m` | Unified |
+| Geometría/fondo/sombra de popups | `src/menus/MenuPopup.m` | Unified |
+| Status items del sistema | `src/status/SystemStatusItems.m` | Unified |
+| Status items externos | `src/status/ExternalStatusItems.m` | Unified |
+| Artwork de status embebido | `src/status/StatusIcons.m` | Unified |
+| Notificación de selección de status | `src/status/StatusSelectionIPC.m` | Unified |
+| Selección popup/context/Dock | `src/selection/MenuSelection.m` | BlueSelection |
+| Selección sidebar/source list | `src/selection/SidebarSelection.m` | BlueSelection |
+| Helper de wallpaper | `src/wallpaper/WallpaperSource.m` | Helper |
 
-El mapa corto de [`src/README.md`](../../src/README.md) es el mejor punto de partida para modificar código.
+## Reglas de diseño
 
-## Un dueño por superficie
+1. **Un propietario por superficie.** No agregues un segundo pipeline de hooks para una vista que ya pertenece a otro módulo.
+2. **Un renderer para la selección azul.** Los módulos deciden *cuándo* hay selección; `SelectionRenderer` decide *cómo* se dibuja.
+3. **Helpers de runtime centralizados.** Los helpers genéricos de métodos/ivars/procesos pertenecen a `Runtime`.
+4. **Guards para APIs privadas.** Resuelve clase/selector, valida encodings cuando sea práctico, mantén la instalación idempotente y conserva la implementación original.
+5. **Los datos generados siguen siendo generados.** Headers y binarios de build pertenecen a `build/`/`dist/`, no al repositorio.
+6. **Fallo local.** Si una clase privada no existe o cambia su ABI, debe desactivarse la función concreta y no ampliarse el alcance ni provocar crashes en apps no relacionadas.
 
-Una causa importante de regresiones anteriores fueron pipelines de hooks duplicados. La regla actual es estricta:
+## Límites de compilación
 
-- Unified controla selección de **menú superior y status items**.
-- BlueSelection controla selección **popup/contextual/Dock/sidebar**.
-- `SelectionRenderer.m` controla todos los píxeles azules Snow Leopard.
+Todos los binarios propios comparten la política de compilación definida en `scripts/toolchain.sh`: slices universales Apple Silicon (`arm64 + arm64e`), ARC, `-O2`, warnings estrictos, visibilidad oculta de símbolos C y `dead_strip` del linker.
 
-No añadas un segundo pipeline sólo porque otro módulo pueda ver la misma vista.
-
-## Assets embebidos
-
-El repositorio guarda el artwork canónico como archivos normales dentro de `assets/`:
-
-- 61 assets de status icons en `assets/status-icons/`;
-- 2 PNG del menú Apple en `assets/apple-menu/`.
-
-`assets/manifest.json` registra ruta, símbolo C, tamaño y SHA-256 de cada asset. `scripts/generate-embedded-assets.py` verifica esos valores y crea `build/generated/SnowLeopardEmbeddedAssets.h` durante la compilación. Ese header generado no se versiona en Git.
-
-La dylib final conserva `runtimeResources=0`: el artwork queda embebido en el binario compilado mientras el repositorio sigue siendo legible.
-
-## Modelo de seguridad para APIs privadas
-
-Los hooks privados de AppKit sólo se instalan después de:
-
-1. comprobar macOS Sequoia 15.x;
-2. comprobar identidad/tipo del proceso esperado;
-3. resolver clase y selector objetivo;
-4. validar el encoding observado del método;
-5. materializar un método propio cuando hace falta;
-6. guardar el `IMP` original para poder revertir una instalación parcial.
-
-Las operaciones reutilizables viven en `Runtime`. Los módulos nuevos no deben crear sus propios helpers genéricos de swizzle/ivars.
-
-## Datos generados al compilar
-
-Los archivos generados pertenecen únicamente a `build/`. Los módulos fuente no deben contener volcados Base64/hex de artwork binario y los headers C generados no deben subirse a Git.
-
-## Por qué no se usa una sola dylib
-
-Unir las dos dylibs reduciría un archivo en disco, pero acoplaría filtros de procesos y hooks privados que no tienen el mismo alcance. La separación actual es operativamente más simple: un fallo de sidebar no obliga a todos los procesos de barra a cargar esos hooks y la cobertura del Dock no tiene que añadirse al filtro de Unified.
+LTO no se activa por defecto. Los hooks privados Objective-C son sensibles a cambios de toolchain/runtime y una optimización de programa completo debe validarse en la build exacta de macOS antes de adoptarse.

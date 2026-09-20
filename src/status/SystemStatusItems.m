@@ -13,7 +13,7 @@
 #import "StatusSelectionIPC.h"
 #import "Performance.h"
 
-const char SLSnowLeopardSystemStatusCapabilities[] =
+const char SLSnowLeopardSystemStatusCapabilities[] SL_CAPABILITY_EXPORT =
     "snowLeopardSystemStatus=modular-v2 owner=unified";
 
 // Apple/system-owned right-side status-item module for the Unified dylib.

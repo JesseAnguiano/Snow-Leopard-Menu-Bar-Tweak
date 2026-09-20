@@ -33,8 +33,8 @@
 
 Those samples belong to the resource, but they do not directly equal final white opacity: on 10.6, CoreUI and WindowServer still composite the resource with the desktop. Using them as pure alpha on Sequoia makes the background too white. The adaptation uses color preservation and the final curve measured from the 10.6 capture after aligning the Aurora background and normalizing color profiles to sRGB:
 
-- In v11 this curve is drawn over the top strip of the active wallpaper, scaled to the screen size, diffused with Gaussian 9, and adjusted with brightness 0.02 and contrast 1.15.
-- The v8 additive path and v10 private filter did not modify the installed background and are not used.
+- The current adaptation draws this curve over the top strip of the active wallpaper, scales it to the screen size, diffuses it with Gaussian 9, and adjusts brightness by 0.02 and contrast by 1.15.
+- Earlier additive/private-filter experiments are not part of the production path.
 - top row: `0.92437`
 - body: `0.83703, 0.82264, 0.80843, 0.79406, 0.77953, 0.76442, 0.74930, 0.73393, 0.71861, 0.70359, 0.68852, 0.67296, 0.65747, 0.64130, 0.62398, 0.60799, 0.59552, 0.58004, 0.56290, 0.54446`
 
@@ -45,3 +45,7 @@ The Retina adaptation reserves exactly one physical pixel for the top highlight 
 WindowServer blur is resolved dynamically. If it is unavailable, the film remains transparent instead of being replaced by an opaque fill.
 
 The original binaries are not copied to the system: the tweak contains only the required data and metrics, avoiding an external runtime dependency.
+
+## Rights note
+
+The MIT License in this repository covers project code, not third-party or platform artwork automatically. Before publishing or redistributing extracted/reference artwork, confirm that you have the necessary rights or permission for that material.

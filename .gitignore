@@ -1,0 +1,50 @@
+# macOS / Finder archive metadata
+.DS_Store
+._*
+.AppleDouble
+__MACOSX/
+.LSOverride
+
+# Build products
+build/
+*.dylib
+*.o
+*.app
+*.dSYM/
+
+# Archives / local packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Local backups and scratch files
+backups/
+rollback*/
+*.before-*
+*.bak
+*.tmp
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Generated installer packages
+dist/
+*.pkg
+
+# Patch / merge leftovers
+*.orig
+*.rej
+
+# Xcode / clang local state
+DerivedData/
+xcuserdata/
+.clangd/

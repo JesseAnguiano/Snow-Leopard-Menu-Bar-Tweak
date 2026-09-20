@@ -1,27 +1,27 @@
 # Documentation / Documentación
 
-The repository keeps the root intentionally small. User-facing entry points stay at the top level; implementation, assets, tooling, tests, and detailed documentation live in dedicated directories.
+The repository keeps user entry points at the root and separates runtime code, assets, tooling, tests and diagnostics by responsibility.
 
-La raíz del repositorio se mantiene deliberadamente pequeña. Los puntos de entrada para el usuario quedan arriba; la implementación, assets, herramientas, pruebas y documentación detallada viven en directorios separados.
-
-## Repository layout / Estructura del repositorio
+La raíz contiene los puntos de entrada para el usuario y separa el runtime, assets, herramientas, pruebas y diagnósticos por responsabilidad.
 
 ```text
 Snow-Leopard-Menu-Bar-Tweak/
-├── .github/                 GitHub workflows and templates
+├── .github/                 GitHub workflow + templates
 ├── assets/                  Canonical artwork + manifest
-├── docs/                    English and Spanish documentation
-├── scripts/                 Build, install and verification tools
-├── src/                     Runtime source code
-├── tests/                   Regression and diagnostic tests
-├── Install.command          Guided installer
-├── Uninstall.command        Guided uninstaller
-├── Makefile                 Developer shortcuts
-├── README.md                User-facing project overview
-├── LICENSE                  Canonical MIT license
-├── CONTRIBUTING.md          Contribution guide
-├── libSnowLeopardMenuBarUnified.dylib.blacklist
-└── libSnowLeopardBlueSelection.dylib.blacklist
+├── docs/                    English/Spanish documentation
+├── packaging/               Source-only Installer templates
+├── scripts/                 Build/install/audit tooling
+├── src/                     Runtime + wallpaper-helper source
+├── tests/                   Deterministic regressions/harnesses
+├── tools/diagnostics/       Developer-only runtime probes
+├── Install.command
+├── Build-Package.command
+├── Uninstall.command
+├── Makefile
+├── README.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+└── LICENSE
 ```
 
 ## English

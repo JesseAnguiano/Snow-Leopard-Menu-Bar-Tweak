@@ -1,10 +1,24 @@
-# Publicar en GitHub
+# Publicación en GitHub
 
 > [English version](../en/PUBLISHING.md)
 
-Este repositorio se distribuye bajo la **Licencia MIT**. Revisa [`LICENSE`](../../LICENSE) antes de publicar y conserva el aviso de copyright y de permiso en las copias o partes sustanciales del software.
+Antes del primer push público, revisa `LICENSE`, `SECURITY.md` y la nota de derechos de assets en `ASSETS.md`. La licencia MIT cubre el código del proyecto; no concede automáticamente derechos sobre artwork o material de referencia ajeno.
 
-Un primer push típico sería:
+Validación recomendada antes del push:
+
+```bash
+make release-check
+```
+
+Después, en la build objetivo de macOS Sequoia, ejecuta también el build completo y las pruebas manuales:
+
+```bash
+make all
+```
+
+No incluyas `build/`, `dist/`, dylibs/apps/packages compilados, headers generados, logs locales, backups ni rutas específicas de una máquina. `scripts/audit-repository.py` forma parte de `make release-check` y busca fugas comunes de privacidad/rutas/metadata.
+
+Un primer push típico:
 
 ```bash
 git init
@@ -15,13 +29,4 @@ git remote add origin git@github.com:YOUR-USER/Snow-Leopard-Menu-Bar-Tweak.git
 git push -u origin main
 ```
 
-No añadas `build/` ni dylibs compiladas a commits normales. Para distribuir binarios, compila desde un commit etiquetado y sube los artefactos a un GitHub Release. Registra en las notas del release el commit exacto, la versión de macOS probada, arquitecturas y limitaciones conocidas.
-
-Comprobaciones recomendadas antes de hacer push:
-
-```bash
-./scripts/check-project.sh
-./tests/run-menubar-regressions.sh
-```
-
-El segundo comando requiere macOS Sequoia y Xcode Command Line Tools.
+Para distribuir binarios, crea el `.pkg` desde un commit etiquetado con `make package` y sube el paquete de `dist/` a GitHub Releases. Indica en las notas la build de macOS probada, arquitecturas y limitaciones conocidas.
