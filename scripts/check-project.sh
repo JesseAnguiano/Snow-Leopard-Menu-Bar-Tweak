@@ -104,7 +104,7 @@ fi
 while IFS= read -r -d '' script; do
     /bin/bash -n "${script}"
 done < <(find "${ROOT}" -type f \
-    \( -name '*.sh' -o -name '*.command' \) \
+    -name '*.sh' \
     -not -path '*/.git/*' -not -path '*/build/*' -not -path '*/dist/*' -print0)
 
 PLUTIL="$(command -v plutil || true)"

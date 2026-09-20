@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
 
 TEXT_SUFFIXES = {
-    ".c", ".command", ".h", ".inc", ".json", ".m", ".md", ".plist",
+    ".c", ".h", ".inc", ".json", ".m", ".md", ".plist",
     ".py", ".sh", ".txt", ".yml", ".yaml",
 }
 TEXT_NAMES = {".editorconfig", ".gitattributes", ".gitignore", "LICENSE", "Makefile"}

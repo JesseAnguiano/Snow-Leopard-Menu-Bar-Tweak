@@ -71,6 +71,22 @@ for path in "${SUPPORT_DIR}" "${HELPER_APP}" "${AGENTS_DIR}" "${AGENT_PLIST}"; d
     [[ ! -L "${path}" ]] || fail "Refusing to replace symbolic link: ${path}"
 done
 /bin/mkdir -p "${SYSTEM_BACKUP}" "${SUPPORT_DIR}" "${AGENTS_DIR}" "${USER_BACKUP}"
+
+# postinstall runs as root. On a fresh account ~/Library/LaunchAgents
+# may not exist yet, so mkdir can create it as root-owned.
+AGENTS_OWNER_UID="$(/usr/bin/stat -f '%u' "${AGENTS_DIR}" 2>/dev/null || true)"
+
+if [[ "${AGENTS_OWNER_UID}" == "0" ]]; then
+    /usr/sbin/chown "${USER_UID}:${USER_GID}" "${AGENTS_DIR}"
+elif [[ -n "${AGENTS_OWNER_UID}" && "${AGENTS_OWNER_UID}" != "${USER_UID}" ]]; then
+    fail "LaunchAgents is owned by an unexpected user: ${AGENTS_DIR}"
+fi
+
+# pkg postinstall runs as root. On a fresh macOS account LaunchAgents may not
+# exist yet, so mkdir would otherwise create it as root-owned.
+# Keep the user's LaunchAgents directory writable by that user.
+/usr/sbin/chown "${USER_UID}:${USER_GID}" "${AGENTS_DIR}"
+
 /usr/sbin/chown root:wheel "${SYSTEM_BACKUP}"
 /bin/chmod 700 "${SYSTEM_BACKUP}"
 
