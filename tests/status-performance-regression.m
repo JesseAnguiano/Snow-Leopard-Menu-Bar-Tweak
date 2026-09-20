@@ -27,7 +27,7 @@ static CGImageRef TestImage(CGFloat red, CGFloat green, CGFloat blue) CF_RETURNS
 int main(void) { @autoreleasepool {
     NSView *anchorRoot = [[NSView alloc] initWithFrame:NSMakeRect(0,0,36,24)];
     NSButton *anchorButton = [[NSButton alloc] initWithFrame:anchorRoot.bounds];
-    anchorButton.identifier = SLSpotlightRightMarginAnchorIdentifier;
+    anchorButton.identifier = SL_SPOTLIGHT_RIGHT_MARGIN_ANCHOR_IDENTIFIER;
     [anchorRoot addSubview:anchorButton];
     assert(SLViewTreeContainsSpotlightRightMarginAnchor(anchorRoot));
     assert(!SLViewTreeContainsSpotlightRightMarginAnchor(
