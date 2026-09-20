@@ -25,20 +25,20 @@ The package contains both precompiled universal dylibs (`arm64 + arm64e`), both 
 
 1. Install Xcode Command Line Tools (`xcode-select --install`).
 2. Download and extract the repository/source archive.
-3. Double-click `Install.command`.
+3. Double-click `Install.sh`.
 4. If Gatekeeper blocks it, right-click the file and choose **Open**.
 5. Enter the administrator password only when Terminal requests it.
 
 The source installer validates the repository, builds both universal dylibs, builds the wallpaper helper, installs the Ammonia blacklists, signs/verifies installed components, and starts the helper.
 
-Do **not** run `Install.command` with `sudo`; it elevates only the operations that write to Ammonia's protected directory.
+Do **not** run `Install.sh` with `sudo`; it elevates only the operations that write to Ammonia's protected directory.
 
 ## Build an installable `.pkg` from the repository
 
 On a development/build Mac with Xcode Command Line Tools:
 
 ```bash
-./Build-Package.command
+./Build-Package.sh
 ```
 
 or:
@@ -47,7 +47,7 @@ or:
 make package
 ```
 
-The builder compiles the same runtime used by `Install.command` and writes a self-contained package to `dist/`. The resulting `.pkg` can then be copied to another compatible Sequoia Apple Silicon Mac and installed there without Command Line Tools.
+The builder compiles the same runtime used by `Install.sh` and writes a self-contained package to `dist/`. The resulting `.pkg` can then be copied to another compatible Sequoia Apple Silicon Mac and installed there without Command Line Tools.
 
 See [`packaging/README.md`](../../packaging/README.md) for package versioning and optional Developer ID Installer signing.
 
@@ -124,4 +124,4 @@ Already-running processes keep the code that was loaded when they started. Reope
 
 ## Uninstall
 
-Double-click `Uninstall.command`. It removes only components owned by this project; it does not uninstall Ammonia.
+Double-click `Uninstall.sh`. It removes only components owned by this project; it does not uninstall Ammonia.

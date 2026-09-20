@@ -14,9 +14,9 @@ Snow-Leopard-Menu-Bar-Tweak/
 ├── src/                     Runtime + wallpaper-helper source
 ├── tests/                   Deterministic regressions/harnesses
 ├── tools/diagnostics/       Developer-only runtime probes
-├── Install.command
-├── Build-Package.command
-├── Uninstall.command
+├── Install.sh
+├── Build-Package.sh
+├── Uninstall.sh
 ├── Makefile
 ├── README.md
 ├── CONTRIBUTING.md

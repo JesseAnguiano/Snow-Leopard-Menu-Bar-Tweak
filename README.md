@@ -32,7 +32,7 @@ For a normal release, install the `.pkg` from GitHub Releases.
 To build and install from source:
 
 ```bash
-./Install.command
+./Install.sh
 ```
 
 Xcode Command Line Tools are required when building from source.
@@ -40,7 +40,7 @@ Xcode Command Line Tools are required when building from source.
 ## Uninstall
 
 ```bash
-./Uninstall.command
+./Uninstall.sh
 ```
 
 ## Build
@@ -99,13 +99,13 @@ Tweak inspirado en **Mac OS X Snow Leopard** para macOS Sequoia 15.x en Apple Si
 ### Instalar desde source
 
 ```bash
-./Install.command
+./Install.sh
 ```
 
 ### Desinstalar
 
 ```bash
-./Uninstall.command
+./Uninstall.sh
 ```
 
 La documentación técnica está en [`docs/`](docs/README.md). El proyecto no depende de Glow.

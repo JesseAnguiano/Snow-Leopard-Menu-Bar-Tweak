@@ -25,20 +25,20 @@ El paquete contiene las dos dylibs universales (`arm64 + arm64e`) ya compiladas,
 
 1. Instala Xcode Command Line Tools (`xcode-select --install`).
 2. Descarga y descomprime el repositorio/source.
-3. Haz doble clic en `Install.command`.
+3. Haz doble clic en `Install.sh`.
 4. Si Gatekeeper lo bloquea, haz clic derecho y selecciona **Abrir**.
 5. Introduce la contraseña de administrador sólo cuando Terminal la solicite.
 
 El instalador desde source valida el repositorio, compila las dos dylibs universales, compila el helper de wallpaper, instala las blacklists de Ammonia, firma/verifica los componentes instalados e inicia el helper.
 
-No ejecutes `Install.command` con `sudo`; eleva únicamente las operaciones que escriben en el directorio protegido de Ammonia.
+No ejecutes `Install.sh` con `sudo`; eleva únicamente las operaciones que escriben en el directorio protegido de Ammonia.
 
 ## Crear un `.pkg` instalable desde el repositorio
 
 En un Mac de desarrollo/build con Xcode Command Line Tools:
 
 ```bash
-./Build-Package.command
+./Build-Package.sh
 ```
 
 o:
@@ -47,7 +47,7 @@ o:
 make package
 ```
 
-El builder compila el mismo runtime que usa `Install.command` y genera un paquete autocontenido dentro de `dist/`. Después puedes copiar ese `.pkg` a otro Mac Apple Silicon compatible con Sequoia e instalarlo allí sin Command Line Tools.
+El builder compila el mismo runtime que usa `Install.sh` y genera un paquete autocontenido dentro de `dist/`. Después puedes copiar ese `.pkg` a otro Mac Apple Silicon compatible con Sequoia e instalarlo allí sin Command Line Tools.
 
 Consulta [`packaging/README.md`](../../packaging/README.md) para cambiar la versión del paquete y, opcionalmente, firmarlo con Developer ID Installer.
 
@@ -124,4 +124,4 @@ Los procesos ya abiertos conservan el código que cargaron al arrancar. Reabre l
 
 ## Desinstalación
 
-Haz doble clic en `Uninstall.command`. Elimina únicamente componentes propiedad de este proyecto; no desinstala Ammonia.
+Haz doble clic en `Uninstall.sh`. Elimina únicamente componentes propiedad de este proyecto; no desinstala Ammonia.

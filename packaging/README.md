@@ -9,7 +9,7 @@ The repository can build a self-contained macOS Installer package from the curre
 Run either:
 
 ```bash
-./Build-Package.command
+./Build-Package.sh
 ```
 
 or:
@@ -53,7 +53,7 @@ El repositorio puede generar un paquete instalador de macOS autocontenido a part
 Ejecuta:
 
 ```bash
-./Build-Package.command
+./Build-Package.sh
 ```
 
 o:
